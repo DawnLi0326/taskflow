@@ -1,1 +1,0 @@
-import{_ as s,c as t,a,o}from"./index-D7qMeQmq.js";const c={},n={class:"task-list-container"};function r(_,e){return o(),t("div",n,[...e[0]||(e[0]=[a("h2",null,"任务列表",-1)])])}const d=s(c,[["render",r],["__scopeId","data-v-7877c794"]]);export{d as default};
