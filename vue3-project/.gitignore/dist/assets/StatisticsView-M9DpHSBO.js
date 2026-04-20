@@ -1,0 +1,1 @@
+import{_ as e,c as s,a,o as c}from"./index-D7qMeQmq.js";const o={},n={class:"statistics-container"};function r(i,t){return c(),s("div",n,[...t[0]||(t[0]=[a("h2",null,"统计数据",-1)])])}const d=e(o,[["render",r],["__scopeId","data-v-d5e624a5"]]);export{d as default};
