@@ -4,6 +4,7 @@ import { Edit, Delete, Filter, Sort, Search } from '@element-plus/icons-vue'
 import { useTaskStore } from '../stores/task'
 import { useRoute } from 'vue-router'
 import draggable from 'vuedraggable'
+import { ElMessage } from 'element-plus'
 
 const DEFAULT_NEW_TASK = {
   title: '',
@@ -15,16 +16,11 @@ const DEFAULT_NEW_TASK = {
 const taskStore = useTaskStore()
 const route = useRoute()
 
+const addTaskFormRef = ref(null)
+
 const tasks = computed(() => taskStore.tasks)
 
-// 本地任务列表（用于拖拽排序）- 这是关键！
-const draggableList = ref([...taskStore.tasks])
-
-// 监听 tasks 变化，更新 draggableList
-watch(() => taskStore.tasks, (newTasks) => {
-  // 当任务数据发生任何变化时（包括编辑），都更新 draggableList
-  draggableList.value = [...newTasks]
-}, { deep: true })
+// 直接使用 taskStore.tasks 作为唯一数据源
 
 const newTask = ref({ ...DEFAULT_NEW_TASK })
 const editingTask = ref(null)
@@ -51,7 +47,7 @@ const sortByPriority = (a, b) => {
 
 // 过滤后的任务（不包含排序，用于筛选显示）
 const filteredTasks = computed(() => {
-  let result = [...draggableList.value]
+  let result = [...taskStore.tasks]
 
   if (searchKeyword.value.trim()) {
     const keyword = searchKeyword.value.toLowerCase().trim()
@@ -85,7 +81,7 @@ const filteredTasks = computed(() => {
 const uncompletedTasks = computed({
   get: () => {
     // 获取所有未完成任务
-    let allUncompleted = draggableList.value.filter(task => !task.completed)
+    let allUncompleted = taskStore.tasks.filter(task => !task.completed)
     
     // 如果是逾期筛选模式，则只显示逾期的未完成任务
     if (filterStatus.value === 'overdue') {
@@ -123,14 +119,13 @@ const uncompletedTasks = computed({
     return filtered
   },
   set: (newOrder) => {
-    // 获取当前已完成的任务
-    const completedTasksList = draggableList.value.filter(task => task.completed)
+    // 获取当前已完成的任务（从 taskStore 中获取，确保包含所有任务）
+    const completedTasksList = taskStore.tasks.filter(task => task.completed)
     
     // 按照新顺序排列未完成任务，并添加已完成任务在末尾
     const finalTasks = [...newOrder, ...completedTasksList]
     
-    // 更新本地列表和 store
-    draggableList.value = finalTasks
+    // 直接更新 store
     taskStore.setTasks(finalTasks)
     
     // 设置为自定义排序模式
@@ -146,7 +141,7 @@ const uncompletedTasks = computed({
 // 已完成任务（不可拖拽）
 const completedTasks = computed(() => {
   // 获取所有已完成任务
-  const allCompleted = draggableList.value.filter(task => task.completed)
+  const allCompleted = taskStore.tasks.filter(task => task.completed)
   
   // 应用搜索和状态过滤
   let filtered = [...allCompleted]
@@ -184,12 +179,26 @@ const resetNewTask = () => {
 }
 
 onMounted(() => {
-  taskStore.loadFromLocalStorage()
-
   // 处理从统计页面跳转过来的逾期筛选
   if (route.query.filter === 'overdue') {
     console.log('检测到逾期任务筛选参数，正在设置筛选状态...')
     filterStatus.value = 'overdue'
+  }
+
+  // 处理从首页跳转过来的添加任务表单显示
+  if (route.query.showAddForm === 'true') {
+    console.log('检测到显示添加任务表单参数，正在滚动到表单...')
+    setTimeout(() => {
+      if (addTaskFormRef.value) {
+        addTaskFormRef.value.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+          inline: 'nearest'
+        })
+        // 添加动画效果
+        addTaskFormRef.value.classList.add('form-animation')
+      }
+    }, 100)
   }
 
   // 从 localStorage 恢复排序模式
@@ -206,30 +215,32 @@ onMounted(() => {
         const uncompletedIds = JSON.parse(savedOrder)
         const currentTasks = [...taskStore.tasks]
         
-        // 将未完成任务按照保存的顺序排列
-        const uncompletedTasksFromStore = currentTasks.filter(task => !task.completed)
-        const completedTasksFromStore = currentTasks.filter(task => task.completed)
-        
-        // 按照保存的顺序重新排列未完成任务
-        const sortedUncompleted = uncompletedIds
-          .map(id => uncompletedTasksFromStore.find(task => task.id === id))
-          .filter(Boolean)
-        
-        // 合并：排序后的未完成任务 + 已完成任务
-        const reorderedTasks = [...sortedUncompleted, ...completedTasksFromStore]
-        
-        // 更新 store
-        taskStore.setTasks(reorderedTasks)
-        draggableList.value = reorderedTasks
+        // 只有当保存的排序包含当前任务时才应用排序
+        if (uncompletedIds.length > 0) {
+          // 将未完成任务按照保存的顺序排列
+          const uncompletedTasksFromStore = currentTasks.filter(task => !task.completed)
+          const completedTasksFromStore = currentTasks.filter(task => task.completed)
+          
+          // 按照保存的顺序重新排列未完成任务
+          const sortedUncompleted = uncompletedIds
+            .map(id => uncompletedTasksFromStore.find(task => task.id === id))
+            .filter(Boolean)
+          
+          // 合并：排序后的未完成任务 + 已完成任务
+          const reorderedTasks = [...sortedUncompleted, ...completedTasksFromStore]
+          
+          // 只有当重新排序后的任务数量与当前任务数量相同时才更新
+          if (reorderedTasks.length === currentTasks.length) {
+            taskStore.setTasks(reorderedTasks)
+          }
+        }
         return
       } catch (e) {
         // 如果解析失败，使用默认顺序
+        console.error('恢复排序失败:', e)
       }
     }
   }
-  
-  // 其他排序模式，使用默认顺序
-  draggableList.value = [...taskStore.tasks]
 })
 
 // 处理排序模式变化
@@ -259,7 +270,6 @@ const addTask = () => {
   if (!title) return
 
   const task = {
-    id: Date.now(),
     ...newTask.value
   }
 
@@ -269,6 +279,13 @@ const addTask = () => {
 
   taskStore.addTask(task)
   resetNewTask()
+  
+  // 显示添加成功提示
+  ElMessage({
+    message: '添加任务成功',
+    type: 'success',
+    duration: 2000
+  })
 }
 
 const findTaskIndexById = (taskId) => {
@@ -328,13 +345,16 @@ const getPriorityInfo = (priority) => {
 }
 
 // 判断任务是否逾期
+// 判断任务是否逾期
 const isTaskOverdue = (task) => {
   if (task.completed) return false
   if (!task.dueDate) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const todayStr = today.toISOString().split('T')[0]
-  return task.dueDate < todayStr
+  
+  // 确保日期格式一致
+  const today = new Date().toISOString().split('T')[0]
+  const taskDate = new Date(task.dueDate).toISOString().split('T')[0]
+  
+  return taskDate < today
 }
 </script>
 
@@ -345,7 +365,7 @@ const isTaskOverdue = (task) => {
       <p>管理和跟踪您的任务</p>
     </div>
 
-    <div class="add-task-form" ref="addTaskForm">
+    <div class="add-task-form" ref="addTaskFormRef">
       <h2>添加新任务</h2>
       <el-form :model="newTask" @submit.prevent="addTask" size="default">
         <div class="form-row">
@@ -606,7 +626,9 @@ const isTaskOverdue = (task) => {
                   {{ getPriorityInfo(task.priority).label }}
                 </span>
                 <div class="task-completed">
-                  <el-checkbox v-model="task.completed" @change="updateStatus(task.id, task.completed)" label="已完成" />
+                  <el-tooltip content="已完成任务不可修改" placement="top">
+                    <el-checkbox v-model="task.completed" @change="updateStatus(task.id, task.completed)" label="已完成" :disabled="true" />
+                  </el-tooltip>
                 </div>
               </div>
             </div>
@@ -661,6 +683,24 @@ const isTaskOverdue = (task) => {
 .add-task-form:hover {
   box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.12);
   transform: translateY(-5px);
+}
+
+/* 表单动画效果 */
+.form-animation {
+  animation: formAppear 0.6s ease-out forwards;
+}
+
+@keyframes formAppear {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    box-shadow: 0 8px 24px 0 rgba(0, 0, 0, 0.15);
+  }
 }
 
 .dashboard-card {

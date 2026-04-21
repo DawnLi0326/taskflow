@@ -1,5 +1,14 @@
 <script setup>
+import { onMounted } from 'vue'
 import Layout from './components/Layout.vue'
+import { useTaskStore } from './stores/task'
+
+const taskStore = useTaskStore()
+
+onMounted(() => {
+  // 应用启动时加载一次任务数据
+  taskStore.loadFromLocalStorage()
+})
 </script>
 
 <template>

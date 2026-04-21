@@ -2,6 +2,7 @@
 import { ref, watch, onMounted } from 'vue'
 import { useThemeStore } from '../stores/theme'
 import { useTaskStore } from '../stores/task'
+import { ElMessage } from 'element-plus'
 
 // 主题 store
 const themeStore = useThemeStore()
@@ -122,6 +123,17 @@ const importTasks = (event) => {
   // 重置文件输入
   event.target.value = ''
 }
+
+// 复制 GitHub 仓库地址
+const copyGithubUrl = () => {
+  const url = 'https://github.com/DawnLi0326/taskflow'
+  navigator.clipboard.writeText(url).then(() => {
+    ElMessage.success('GitHub 仓库地址已复制到剪贴板')
+  }).catch(err => {
+    ElMessage.error('复制失败，请手动复制')
+    console.error('复制失败:', err)
+  })
+}
 </script>
 
 <template>
@@ -163,7 +175,12 @@ const importTasks = (event) => {
             <el-descriptions-item label="项目版本">v1.0.0</el-descriptions-item>
             <el-descriptions-item label="技术栈">Vue 3 / Vite / Element Plus / Pinia / ECharts</el-descriptions-item>
             <el-descriptions-item label="GitHub 仓库">
-              <el-input placeholder="https://github.com/你的用户名/task-dashboard" disabled />
+              <div class="github-url-container">
+                <el-input placeholder="https://github.com/DawnLi0326/taskflow" disabled style="flex: 1;" />
+                <el-button type="primary" size="small" @click="copyGithubUrl" style="margin-left: 10px;">
+                  复制
+                </el-button>
+              </div>
             </el-descriptions-item>
             <el-descriptions-item label="作者">
               <el-input placeholder="唐梨铭" disabled />
@@ -367,6 +384,13 @@ const importTasks = (event) => {
 .about-info .el-input {
   width: 100%;
   max-width: 400px;
+}
+
+.github-url-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 450px;
 }
 
 .import-export-buttons {

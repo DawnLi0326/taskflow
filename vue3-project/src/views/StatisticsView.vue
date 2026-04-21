@@ -2,16 +2,20 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import * as echarts from 'echarts'
 import { useTaskStore } from '../stores/task'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 const taskStore = useTaskStore()
 const router = useRouter()
+const route = useRoute()
 const tasks = computed(() => taskStore.tasks)
 
 // 图表容器引用
 const pieChartRef = ref(null)
 const barChartRef = ref(null)
 const priorityChartRef = ref(null)
+
+// 统计内容容器引用（用于动画）
+const statsContentRef = ref(null)
 
 // 图表实例
 let pieChart = null
@@ -20,9 +24,12 @@ let priorityChart = null
 
 // 计算逾期任务数量（截止日期早于今天且未完成）
 const overdueCount = computed(() => {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const todayStr = today.toISOString().split('T')[0]
+  // 获取本地日期字符串 YYYY-MM-DD
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const todayStr = `${year}-${month}-${day}`
   
   return tasks.value.filter(task => {
     if (task.completed) return false
@@ -238,6 +245,18 @@ const updateBarChart = () => {
       trigger: 'axis',
       axisPointer: {
         type: 'cross'
+      },
+      formatter: function(params) {
+        let result = params[0].axisValue + '<br/>'
+        for (let i = 0; i < params.length; i++) {
+          const series = params[i]
+          if (series.seriesName === '任务数量') {
+            result += `✅ 已完成任务：${series.value} 个<br/>`
+          } else if (series.seriesName === '完成率') {
+            result += `📈 完成率：${series.value}%`
+          }
+        }
+        return result
       }
     },
     legend: {
@@ -249,7 +268,7 @@ const updateBarChart = () => {
       top: 10
     },
     grid: {
-      left: '3%',
+      left: '10%',
       right: '8%',
       bottom: '3%',
       containLabel: true
@@ -269,7 +288,7 @@ const updateBarChart = () => {
     yAxis: [
       {
         type: 'value',
-        name: '任务数量',
+        name: '已完成任务数（个）',
         min: 0,
         max: maxCount + 1,
         minInterval: 1,
@@ -453,10 +472,22 @@ const checkDarkMode = () => {
 }
 
 onMounted(() => {
+  // 加载任务数据
   taskStore.loadFromLocalStorage()
+  
   initPieChart()
   initBarChart()
   initPriorityChart()
+  
+  // 处理从首页跳转过来的动画效果
+  if (route.query.showAnimation === 'true') {
+    console.log('检测到显示动画参数，正在添加动画效果...')
+    setTimeout(() => {
+      if (statsContentRef.value) {
+        statsContentRef.value.classList.add('stats-animation')
+      }
+    }, 100)
+  }
   
   // 监听深色模式变化
   const observer = new MutationObserver(checkDarkMode)
@@ -507,7 +538,7 @@ onMounted(() => {
       </el-button>
     </div>
     
-    <div class="statistics-content">
+    <div class="statistics-content" ref="statsContentRef">
       <!-- 第一行：任务完成比例 + 任务优先级分布 -->
       <el-row :gutter="20">
         <el-col :xs="24" :md="12">
@@ -548,7 +579,12 @@ onMounted(() => {
                 <span>近7天任务完成情况</span>
               </div>
             </template>
-            <div v-if="tasks.length > 0" ref="barChartRef" class="chart-container"></div>
+            <div v-if="tasks.length > 0">
+              <div ref="barChartRef" class="chart-container"></div>
+              <div class="chart-note">
+                📌 柱状图：当日实际完成的任务数量；折线图：当日截止任务的完成比例（已完成 / 当日截止任务总数）
+              </div>
+            </div>
             <div v-else class="empty-state">
               <el-empty description="暂无数据" />
             </div>
@@ -646,6 +682,52 @@ onMounted(() => {
   transform: translateY(-4px);
 }
 
+/* 统计内容动画效果 */
+.stats-animation {
+  animation: statsAppear 0.8s ease-out forwards;
+}
+
+@keyframes statsAppear {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 图表卡片的延迟动画 */
+.stats-animation .chart-card {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: cardAppear 0.6s ease-out forwards;
+}
+
+.stats-animation .chart-card:nth-child(1) .chart-card {
+  animation-delay: 0.1s;
+}
+
+.stats-animation .chart-card:nth-child(2) .chart-card {
+  animation-delay: 0.2s;
+}
+
+.stats-animation .chart-card:nth-child(3) .chart-card {
+  animation-delay: 0.3s;
+}
+
+@keyframes cardAppear {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .card-header {
   font-size: 16px;
   font-weight: 600;
@@ -663,6 +745,15 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* 图表注释样式 */
+.chart-note {
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+  text-align: center;
+  margin-top: 8px;
+  padding: 0 20px;
 }
 
 /* 响应式设计 */

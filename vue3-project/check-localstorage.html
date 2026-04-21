@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>检查本地存储</title>
+</head>
+<body>
+    <h1>任务数据</h1>
+    <pre id="tasks"></pre>
+    <script>
+        const tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+        document.getElementById('tasks').textContent = JSON.stringify(tasks, null, 2);
+    </script>
+</body>
+</html>

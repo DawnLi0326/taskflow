@@ -12,6 +12,10 @@ export const useTaskStore = defineStore('task', {
   actions: {
     // 添加任务
     addTask(task) {
+      // 确保任务有唯一的 ID
+      if (!task.id) {
+        task.id = Date.now() + Math.random() * 1000
+      }
       this.tasks.push(task)
       this.saveToLocalStorage()
     },
@@ -47,9 +51,17 @@ export const useTaskStore = defineStore('task', {
     },
     // 从本地存储加载
     loadFromLocalStorage() {
-      const savedTasks = localStorage.getItem('tasks')
-      if (savedTasks) {
-        this.tasks = JSON.parse(savedTasks)
+      try {
+        const savedTasks = localStorage.getItem('tasks')
+        if (savedTasks) {
+          const parsed = JSON.parse(savedTasks)
+          if (Array.isArray(parsed)) {
+            this.tasks = parsed
+          }
+        }
+      } catch (e) {
+        console.error('加载本地存储失败:', e)
+        localStorage.removeItem('tasks')
       }
     },
     // 设置任务数组（用于拖拽排序）
