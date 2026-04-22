@@ -1,10 +1,10 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { Edit, Delete, Filter, Sort, Search } from '@element-plus/icons-vue'
+import { Edit, Delete, Filter, Sort, Search, Check } from '@element-plus/icons-vue'
 import { useTaskStore } from '../stores/task'
 import { useRoute } from 'vue-router'
 import draggable from 'vuedraggable'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const DEFAULT_NEW_TASK = {
   title: '',
@@ -30,6 +30,61 @@ const filterStatus = ref('all')
 const sortMode = ref('dueDate') // 排序模式：dueDate, priority, custom
 const searchKeyword = ref('')
 const priorityOrder = { high: 0, medium: 1, low: 2 }
+
+// 存储选中的已完成任务的 id
+const selectedCompletedTasks = ref([])
+
+// 切换单个任务的选中状态
+const toggleSelectTask = (taskId) => {
+  const index = selectedCompletedTasks.value.indexOf(taskId)
+  if (index === -1) {
+    selectedCompletedTasks.value.push(taskId)
+  } else {
+    selectedCompletedTasks.value.splice(index, 1)
+  }
+}
+
+// 批量删除选中的已完成任务
+const deleteSelectedTasks = async () => {
+  if (selectedCompletedTasks.value.length === 0) {
+    ElMessage.info('请先选择要删除的任务')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedCompletedTasks.value.length} 个已完成任务吗？此操作不可撤销。`,
+      '警告',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    // 从 store 中过滤掉选中的任务
+    const remainingTasks = taskStore.tasks.filter(task => !selectedCompletedTasks.value.includes(task.id))
+    taskStore.setTasks(remainingTasks)
+    selectedCompletedTasks.value = [] // 清空选中
+    ElMessage.success('已删除选中的任务')
+  } catch {
+    // 用户取消
+  }
+}
+
+// 全选/取消全选已完成任务
+const selectAllCompletedTasks = (value) => {
+  if (value) {
+    // 全选所有已完成任务
+    selectedCompletedTasks.value = completedTasks.value.map(task => task.id)
+  } else {
+    // 取消全选
+    selectedCompletedTasks.value = []
+  }
+}
+
+// 检查是否全选
+const isAllSelected = computed(() => {
+  return completedTasks.value.length > 0 && selectedCompletedTasks.value.length === completedTasks.value.length
+})
 
 const sortByDate = (a, b) => {
   const timestampA = new Date(a.dueDate).getTime()
@@ -319,9 +374,35 @@ const deleteTask = (taskId) => {
   taskStore.deleteTask(taskId)
 }
 
+// 删除单个任务（带二次确认）
+const deleteTaskWithConfirm = async (taskId) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除这个已完成任务吗？此操作不可撤销。',
+      '警告',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    taskStore.deleteTask(taskId)
+    // 从选中列表中移除
+    const index = selectedCompletedTasks.value.indexOf(taskId)
+    if (index !== -1) {
+      selectedCompletedTasks.value.splice(index, 1)
+    }
+    ElMessage.success('已删除任务')
+  } catch {
+    // 用户取消
+  }
+}
+
 const updateStatus = (taskId, completed) => {
   taskStore.updateStatus(taskId, completed)
 }
+
+
 
 const formatDate = (date) => {
   if (!date) return ''
@@ -599,19 +680,44 @@ const isTaskOverdue = (task) => {
     
     <!-- 已完成任务区域（不可拖拽） -->
     <div v-if="completedTasks.length > 0" class="tasks-section completed-section">
-      <h3 class="section-title">已完成任务 ({{ completedTasks.length }})</h3>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 class="section-title">已完成任务 ({{ completedTasks.length }})</h3>
+        <div style="display: flex; gap: 10px;">
+          <el-button type="primary" plain size="small" @click="selectAllCompletedTasks(!isAllSelected)">
+            {{ isAllSelected ? '取消全选' : '全选' }}
+          </el-button>
+          <el-button type="danger" plain size="small" @click="deleteSelectedTasks" :disabled="selectedCompletedTasks.length === 0">
+            删除选中 ({{ selectedCompletedTasks.length }})
+          </el-button>
+        </div>
+      </div>
       <div class="tasks-container">
-        <div v-for="task in completedTasks" :key="task.id" class="task-card">
-          <div class="disabled-drag" style="cursor: not-allowed; padding: 0 10px; display: inline-block; margin-right: 10px;">
-            <el-tooltip content="已完成任务不可拖拽" placement="top">
-              <span>🚫</span>
-            </el-tooltip>
-          </div>
+        <div 
+          v-for="task in completedTasks" 
+          :key="task.id" 
+          :class="['task-card', { 'task-card-selected': selectedCompletedTasks.includes(task.id) }]" 
+          @click="toggleSelectTask(task.id)"
+        >
+          <el-checkbox 
+            :model-value="selectedCompletedTasks.includes(task.id)" 
+            @click.stop 
+            @change="toggleSelectTask(task.id)" 
+            style="margin-right: 10px;"
+          />
           <div class="task-content completed">
             <div class="task-header">
               <h3>{{ task.title }}</h3>
               <div class="task-actions">
-                <el-button type="danger" size="small" @click="deleteTask(task.id)" :icon="Delete">删除</el-button>
+                <el-tooltip content="删除任务" placement="top">
+                  <el-button 
+                    type="danger" 
+                    size="small" 
+                    circle 
+                    @click.stop="deleteTaskWithConfirm(task.id)" 
+                    class="hover-delete-btn"
+                    :icon="Delete"
+                  />
+                </el-tooltip>
               </div>
             </div>
 
@@ -1016,6 +1122,38 @@ const isTaskOverdue = (task) => {
 
 .disabled-drag:hover {
   opacity: 1;
+}
+
+/* 悬停显示删除按钮 */
+.task-card .task-actions .hover-delete-btn {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.task-card:hover .task-actions .hover-delete-btn {
+  opacity: 1;
+}
+
+/* 选中卡片样式 */
+.task-card-selected {
+  background-color: var(--el-color-primary-light-9, #ecf5ff);
+  border-left: 3px solid var(--el-color-primary, #409eff);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+}
+
+/* 确保卡片布局稳定，避免边框变化导致抖动 */
+.task-card {
+  border-left: 3px solid transparent;
+  transition: all 0.2s ease;
+}
+
+/* 鼠标悬停效果 */
+.task-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
 }
 
 .add-task-form h2 {
