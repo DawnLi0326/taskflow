@@ -1,777 +1,572 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { useTaskStore } from '../stores/task'
-import { useRouter, useRoute } from 'vue-router'
+import { useSettingsStore } from '../stores/settings'
 
-const taskStore = useTaskStore()
 const router = useRouter()
-const route = useRoute()
-const tasks = computed(() => taskStore.tasks)
+const taskStore = useTaskStore()
+const settingsStore = useSettingsStore()
 
-// 图表容器引用
-const pieChartRef = ref(null)
-const barChartRef = ref(null)
-const priorityChartRef = ref(null)
+// Chart refs
+const pieChartRef = ref()
+const barChartRef = ref()
+const barDailyRef = ref()
+const lineChartRef = ref()
 
-// 统计内容容器引用（用于动画）
-const statsContentRef = ref(null)
-
-// 图表实例
 let pieChart = null
 let barChart = null
-let priorityChart = null
+let barDailyChart = null
+let lineChart = null
 
-// 计算逾期任务数量（截止日期早于今天且未完成）
-const overdueCount = computed(() => {
-  // 获取本地日期字符串 YYYY-MM-DD
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  const todayStr = `${year}-${month}-${day}`
-  
-  return tasks.value.filter(task => {
-    if (task.completed) return false
-    if (!task.dueDate) return false
-    return task.dueDate < todayStr
-  }).length
+const isDark = computed(() => settingsStore.darkMode)
+
+const textColor = computed(() => isDark.value ? '#94a3b8' : '#64748b')
+const titleColor = computed(() => isDark.value ? '#f1f5f9' : '#0f172a')
+const bgColor = computed(() => isDark.value ? '#1e293b' : '#ffffff')
+const borderColor = computed(() => isDark.value ? '#334155' : '#e2e8f0')
+const tooltipBg = computed(() => isDark.value ? '#1e293b' : '#fff')
+const tooltipBorder = computed(() => isDark.value ? '#334155' : '#e2e8f0')
+
+const overdueCount = computed(() => taskStore.overdueTasks.length)
+
+// Compute last 7 days labels and data
+const last7Days = computed(() => {
+  const days = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    days.push(d.toISOString().split('T')[0])
+  }
+  return days
 })
 
-// 跳转到逾期任务筛选
-const goToOverdueTasks = () => {
-  console.log('从统计页面跳转到逾期任务筛选')
-  router.push('/tasks?filter=overdue')
+const dayLabels = computed(() =>
+  last7Days.value.map(d => {
+    const dt = new Date(d)
+    return `${dt.getMonth() + 1}/${dt.getDate()}`
+  })
+)
+
+const completedPerDay = computed(() =>
+  last7Days.value.map(day => {
+    return taskStore.tasks.filter(t => {
+      if (!t.completedAt) return false
+      return t.completedAt.split('T')[0] === day
+    }).length
+  })
+)
+
+const completionRatePerDay = computed(() =>
+  last7Days.value.map(day => {
+    const due = taskStore.tasks.filter(t => t.dueDate === day)
+    if (due.length === 0) return 0
+    const done = due.filter(t => t.completed).length
+    return Math.round((done / due.length) * 100)
+  })
+)
+
+function getBaseOption() {
+  return {
+    backgroundColor: 'transparent',
+    textStyle: { fontFamily: 'Inter, sans-serif' },
+  }
 }
 
-// 计算饼图数据
-const pieData = computed(() => {
-  const completed = tasks.value.filter(task => task.completed).length
-  const pending = tasks.value.filter(task => !task.completed).length
-  return [
-    { name: '已完成', value: completed },
-    { name: '未完成', value: pending }
-  ]
-})
-
-// 计算优先级分布数据
-const priorityData = computed(() => {
-  const high = tasks.value.filter(task => task.priority === 'high').length
-  const medium = tasks.value.filter(task => task.priority === 'medium').length
-  const low = tasks.value.filter(task => task.priority === 'low').length
-  return [
-    { name: '高优先级', value: high },
-    { name: '中优先级', value: medium },
-    { name: '低优先级', value: low }
-  ]
-})
-
-// 计算近7天的日期和对应完成任务数量
-const barData = computed(() => {
-  // 获取近7天的日期
-  const dates = []
-  const today = new Date()
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(today)
-    date.setDate(date.getDate() - i)
-    dates.push(date.toISOString().split('T')[0]) // YYYY-MM-DD 格式
-  }
-
-  // 统计每天完成的任务数量
-  const counts = dates.map(date => {
-    return tasks.value.filter(task =>
-      task.completed && task.dueDate === date
-    ).length
-  })
-
-  // 格式化日期为 MM-DD
-  const formattedDates = dates.map(date => {
-    const [year, month, day] = date.split('-')
-    return `${month}-${day}`
-  })
-
-  return {
-    dates: formattedDates,
-    counts
-  }
-})
-
-// 计算近7天的完成率数据
-const lineData = computed(() => {
-  // 获取近7天的日期
-  const dates = []
-  const today = new Date()
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(today)
-    date.setDate(date.getDate() - i)
-    dates.push(date.toISOString().split('T')[0]) // YYYY-MM-DD 格式
-  }
-
-  // 统计每天的完成率
-  const rates = dates.map(date => {
-    // 获取当天截止的所有任务（有截止日期的任务）
-    const tasksWithDueDate = tasks.value.filter(task => task.dueDate === date)
-    const totalTasks = tasksWithDueDate.length
-
-    if (totalTasks === 0) {
-      return 0 // 如果没有截止任务，完成率视为0
-    }
-
-    // 计算已完成的任务数量
-    const completedTasks = tasksWithDueDate.filter(task => task.completed).length
-
-    // 计算完成率百分比
-    return Math.round((completedTasks / totalTasks) * 100)
-  })
-
-  // 格式化日期为 MM-DD
-  const formattedDates = dates.map(date => {
-    const [year, month, day] = date.split('-')
-    return `${month}-${day}`
-  })
-
-  return {
-    dates: formattedDates,
-    rates
-  }
-})
-
-// 检查是否为深色模式
-const isDarkMode = ref(document.documentElement.classList.contains('dark'))
-
-// 初始化饼图
-const initPieChart = () => {
+function initPieChart() {
   if (!pieChartRef.value) return
-  
   pieChart = echarts.init(pieChartRef.value)
   updatePieChart()
-  
-  // 监听窗口 resize
-  window.addEventListener('resize', handleResize)
 }
 
-// 初始化柱状图
-const initBarChart = () => {
-  if (!barChartRef.value) return
-  
-  barChart = echarts.init(barChartRef.value)
-  updateBarChart()
-  
-  // 监听窗口 resize
-  window.addEventListener('resize', handleResize)
-}
-
-// 初始化优先级图表
-const initPriorityChart = () => {
-  if (!priorityChartRef.value) return
-  
-  priorityChart = echarts.init(priorityChartRef.value)
-  updatePriorityChart()
-  
-  // 监听窗口 resize
-  window.addEventListener('resize', handleResize)
-}
-
-// 通用的 resize 处理
-const handleResize = () => {
-  pieChart?.resize()
-  barChart?.resize()
-  priorityChart?.resize()
-}
-
-// 更新饼图
-const updatePieChart = () => {
+function updatePieChart() {
   if (!pieChart) return
-  
-  const option = {
-    backgroundColor: 'transparent',
+  const completed = taskStore.completedCount
+  const incomplete = taskStore.incompleteCount
+
+  pieChart.setOption({
+    ...getBaseOption(),
     tooltip: {
       trigger: 'item',
-      formatter: '{a} <br/>{b}: {c} ({d}%)'
+      backgroundColor: tooltipBg.value,
+      borderColor: tooltipBorder.value,
+      textStyle: { color: titleColor.value },
+      formatter: '{b}: {c} ({d}%)',
     },
     legend: {
-      orient: 'vertical',
-      right: 10,
-      top: 'center',
-      textStyle: {
-        color: isDarkMode.value ? '#e0e0e0' : '#333'
-      }
+      bottom: 8,
+      textStyle: { color: textColor.value },
     },
-    series: [
-      {
-        name: '任务状态',
-        type: 'pie',
-        radius: ['40%', '70%'],
-        avoidLabelOverlap: false,
-        itemStyle: {
-          borderRadius: 10,
-          borderColor: isDarkMode.value ? '#333' : '#fff',
-          borderWidth: 2
-        },
-        label: {
-          show: false,
-          position: 'center'
-        },
-        emphasis: {
-          label: {
-            show: true,
-            fontSize: 20,
-            fontWeight: 'bold',
-            color: isDarkMode.value ? '#e0e0e0' : '#333'
-          }
-        },
-        labelLine: {
-          show: false
-        },
-        data: pieData.value,
-        color: isDarkMode.value ? ['#5470c6', '#fac858'] : ['#42b883', '#f56c6c']
-      }
-    ]
-  }
-  
-  pieChart.setOption(option)
+    series: [{
+      name: '任务完成',
+      type: 'pie',
+      radius: ['40%', '70%'],
+      center: ['50%', '45%'],
+      avoidLabelOverlap: false,
+      itemStyle: {
+        borderRadius: 6,
+        borderColor: bgColor.value,
+        borderWidth: 2,
+      },
+      label: { show: false },
+      emphasis: {
+        label: { show: true, fontSize: 14, fontWeight: 'bold', color: titleColor.value },
+      },
+      data: [
+        { value: completed, name: '已完成', itemStyle: { color: '#10b981' } },
+        { value: incomplete, name: '未完成', itemStyle: { color: '#2563eb' } },
+      ],
+    }],
+  })
 }
 
-// 更新柱状图（双轴图表：柱状图+折线图）
-const updateBarChart = () => {
+function initBarChart() {
+  if (!barChartRef.value) return
+  barChart = echarts.init(barChartRef.value)
+  updateBarChart()
+}
+
+function updateBarChart() {
   if (!barChart) return
+  const dist = taskStore.incompletePriorityDistribution
+  const total = taskStore.incompleteCount
 
-  // 计算任务数量的最大值，用于设置Y轴范围
-  const maxCount = Math.max(...barData.value.counts, 1)
-
-  const option = {
-    backgroundColor: 'transparent',
+  barChart.setOption({
+    ...getBaseOption(),
     tooltip: {
       trigger: 'axis',
-      axisPointer: {
-        type: 'cross'
-      },
-      formatter: function(params) {
-        let result = params[0].axisValue + '<br/>'
-        for (let i = 0; i < params.length; i++) {
-          const series = params[i]
-          if (series.seriesName === '任务数量') {
-            result += `✅ 已完成任务：${series.value} 个<br/>`
-          } else if (series.seriesName === '完成率') {
-            result += `📈 完成率：${series.value}%`
-          }
-        }
-        return result
-      }
+      axisPointer: { type: 'shadow' },
+      backgroundColor: tooltipBg.value,
+      borderColor: tooltipBorder.value,
+      textStyle: { color: titleColor.value },
     },
-    legend: {
-      data: ['任务数量', '完成率'],
-      textStyle: {
-        color: isDarkMode.value ? '#e0e0e0' : '#333'
-      },
-      right: 10,
-      top: 10
-    },
-    grid: {
-      left: '10%',
-      right: '8%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: barData.value.dates,
-      axisLabel: {
-        color: isDarkMode.value ? '#e0e0e0' : '#333'
-      },
-      axisLine: {
-        lineStyle: {
-          color: isDarkMode.value ? '#666' : '#ddd'
-        }
-      }
-    },
-    yAxis: [
-      {
-        type: 'value',
-        name: '已完成任务数（个）',
-        min: 0,
-        max: maxCount + 1,
-        minInterval: 1,
-        axisLabel: {
-          color: isDarkMode.value ? '#e0e0e0' : '#333',
-          formatter: (value) => Math.floor(value)
-        },
-        axisLine: {
-          show: true,
-          lineStyle: {
-            color: isDarkMode.value ? '#87ceeb' : '#64b5f6'
-          }
-        },
-        splitLine: {
-          lineStyle: {
-            color: isDarkMode.value ? '#333' : '#f0f0f0'
-          }
-        }
-      },
-      {
-        type: 'value',
-        name: '完成率',
-        min: 0,
-        max: 100,
-        axisLabel: {
-          color: isDarkMode.value ? '#e0e0e0' : '#333',
-          formatter: '{value}%'
-        },
-        axisLine: {
-          show: true,
-          lineStyle: {
-            color: isDarkMode.value ? '#ffa07a' : '#f56c6c'
-          }
-        },
-        splitLine: {
-          show: false
-        }
-      }
-    ],
-    series: [
-      {
-        name: '任务数量',
-        type: 'bar',
-        barWidth: '35%',
-        data: barData.value.counts,
-        itemStyle: {
-          color: {
-            type: 'linear',
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
-            colorStops: [
-              { offset: 0, color: isDarkMode.value ? '#87ceeb' : '#64b5f6' },
-              { offset: 1, color: isDarkMode.value ? '#5cabeb' : '#4facfe' }
-            ]
-          },
-          borderRadius: [4, 4, 0, 0]
-        }
-      },
-      {
-        name: '完成率',
-        type: 'line',
-        yAxisIndex: 1,
-        smooth: 0.4,
-        symbol: 'circle',
-        symbolSize: 10,
-        data: lineData.value.rates,
-        itemStyle: {
-          color: isDarkMode.value ? '#ffa07a' : '#f56c6c'
-        },
-        lineStyle: {
-          color: isDarkMode.value ? '#ffa07a' : '#f56c6c',
-          width: 3
-        },
-        label: {
-          show: true,
-          position: 'top',
-          distance: 8,
-          color: isDarkMode.value ? '#ffa07a' : '#f56c6c',
-          fontWeight: 'bold',
-          formatter: '{c}%'
-        }
-      }
-    ]
-  }
-
-  barChart.setOption(option)
-}
-
-// 更新优先级图表（水平条形图）
-const updatePriorityChart = () => {
-  if (!priorityChart) return
-  
-  const option = {
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow'
-      },
-      formatter: '{a} <br/>{b}: {c} 个'
-    },
-    grid: {
-      left: '3%',
-      right: '10%',
-      bottom: '3%',
-      containLabel: true
-    },
+    grid: { left: '3%', right: '10%', top: '8%', bottom: '8%', containLabel: true },
     xAxis: {
       type: 'value',
-      minInterval: 1,
-      axisLabel: {
-        color: isDarkMode.value ? '#e0e0e0' : '#333',
-        formatter: (value) => Math.floor(value)
-      },
-      axisLine: {
-        lineStyle: {
-          color: isDarkMode.value ? '#666' : '#ddd'
-        }
-      },
-      splitLine: {
-        lineStyle: {
-          color: isDarkMode.value ? '#444' : '#f0f0f0'
-        }
-      }
+      max: total || 1,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: borderColor.value } },
+      axisLabel: { color: textColor.value },
     },
     yAxis: {
       type: 'category',
-      data: priorityData.value.map(item => item.name),
-      axisLabel: {
-        color: isDarkMode.value ? '#e0e0e0' : '#333'
-      },
-      axisLine: {
-        lineStyle: {
-          color: isDarkMode.value ? '#666' : '#ddd'
-        }
-      }
+      data: ['低优先级', '中优先级', '高优先级'],
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: textColor.value },
     },
-    series: [
-      {
-        name: '任务数量',
-        type: 'bar',
-        barWidth: '50%',
-        data: priorityData.value.map(item => item.value),
-        itemStyle: {
-          color: (params) => {
-            const colors = isDarkMode.value 
-              ? ['#f56c6c', '#e6a23c', '#67c23a'] 
-              : ['#f56c6c', '#e6a23c', '#67c23a']
-            return colors[params.dataIndex]
-          },
-          borderRadius: [0, 5, 5, 0]
+    series: [{
+      name: '任务数',
+      type: 'bar',
+      barWidth: '40%',
+      itemStyle: { borderRadius: [0, 6, 6, 0] },
+      label: { show: true, position: 'right', color: textColor.value },
+      data: [
+        { value: dist.low, itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#10b981' }, { offset: 1, color: '#34d399' }] } } },
+        { value: dist.medium, itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#f59e0b' }, { offset: 1, color: '#fbbf24' }] } } },
+        { value: dist.high, itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#ef4444' }, { offset: 1, color: '#f87171' }] } } },
+      ],
+    }],
+  })
+}
+
+function initBarDailyChart() {
+  if (!barDailyRef.value) return
+  barDailyChart = echarts.init(barDailyRef.value)
+  updateBarDailyChart()
+}
+
+function updateBarDailyChart() {
+  if (!barDailyChart) return
+
+  barDailyChart.setOption({
+    ...getBaseOption(),
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: tooltipBg.value,
+      borderColor: tooltipBorder.value,
+      textStyle: { color: titleColor.value },
+      formatter: (params) => {
+        const p = params[0]
+        return `${p.name}<br/>完成 ${p.value} 个任务`
+      },
+    },
+    grid: { left: '3%', right: '4%', top: '10%', bottom: '8%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: dayLabels.value,
+      axisLine: { lineStyle: { color: borderColor.value } },
+      axisTick: { show: false },
+      axisLabel: { color: textColor.value },
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: borderColor.value } },
+      axisLabel: { color: textColor.value },
+    },
+    series: [{
+      name: '完成数量',
+      type: 'bar',
+      barWidth: '50%',
+      itemStyle: {
+        borderRadius: [6, 6, 0, 0],
+        color: {
+          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: '#2563eb' },
+            { offset: 1, color: '#0ea5e9' },
+          ],
         },
-        label: {
-          show: true,
-          position: 'right',
-          color: isDarkMode.value ? '#e0e0e0' : '#333',
-          formatter: '{c} 个'
-        }
-      }
-    ]
-  }
-  
-  priorityChart.setOption(option)
+      },
+      emphasis: {
+        itemStyle: {
+          color: {
+            type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: '#1d4ed8' },
+              { offset: 1, color: '#0284c7' },
+            ],
+          },
+        },
+      },
+      data: completedPerDay.value,
+    }],
+  })
 }
 
-// 监听任务数据变化
-watch(tasks, () => {
-  updatePieChart()
-  updateBarChart()
-  updatePriorityChart()
-}, { deep: true })
-
-// 监听深色模式变化
-const checkDarkMode = () => {
-  isDarkMode.value = document.documentElement.classList.contains('dark')
-  updatePieChart()
-  updateBarChart()
-  updatePriorityChart()
+function initLineChart() {
+  if (!lineChartRef.value) return
+  lineChart = echarts.init(lineChartRef.value)
+  updateLineChart()
 }
 
-onMounted(() => {
-  // 加载任务数据
-  taskStore.loadFromLocalStorage()
-  
+function updateLineChart() {
+  if (!lineChart) return
+
+  lineChart.setOption({
+    ...getBaseOption(),
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: tooltipBg.value,
+      borderColor: tooltipBorder.value,
+      textStyle: { color: titleColor.value },
+      formatter: (params) => {
+        const p = params[0]
+        return `${p.name}<br/>完成率 ${p.value}%`
+      },
+    },
+    grid: { left: '3%', right: '4%', top: '10%', bottom: '8%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: dayLabels.value,
+      axisLine: { lineStyle: { color: borderColor.value } },
+      axisTick: { show: false },
+      axisLabel: { color: textColor.value },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: borderColor.value } },
+      axisLabel: { color: textColor.value, formatter: '{value}%' },
+    },
+    series: [{
+      name: '完成率',
+      type: 'line',
+      smooth: true,
+      symbol: 'circle',
+      symbolSize: 7,
+      lineStyle: { color: '#10b981', width: 2.5 },
+      itemStyle: { color: '#10b981', borderWidth: 2, borderColor: bgColor.value },
+      areaStyle: {
+        color: {
+          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: 'rgba(16,185,129,0.3)' },
+            { offset: 1, color: 'rgba(16,185,129,0)' },
+          ],
+        },
+      },
+      data: completionRatePerDay.value,
+    }],
+  })
+}
+
+function resizeCharts() {
+  pieChart?.resize()
+  barChart?.resize()
+  barDailyChart?.resize()
+  lineChart?.resize()
+}
+
+onMounted(async () => {
+  await nextTick()
   initPieChart()
   initBarChart()
-  initPriorityChart()
-  
-  // 处理从首页跳转过来的动画效果
-  if (route.query.showAnimation === 'true') {
-    console.log('检测到显示动画参数，正在添加动画效果...')
-    setTimeout(() => {
-      if (statsContentRef.value) {
-        statsContentRef.value.classList.add('stats-animation')
-      }
-    }, 100)
-  }
-  
-  // 监听深色模式变化
-  const observer = new MutationObserver(checkDarkMode)
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['class']
-  })
-  
-  // 清理函数
-  onUnmounted(() => {
-    observer.disconnect()
-    pieChart?.dispose()
-    barChart?.dispose()
-    priorityChart?.dispose()
-    window.removeEventListener('resize', handleResize)
-  })
+  initBarDailyChart()
+  initLineChart()
+  window.addEventListener('resize', resizeCharts)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('resize', resizeCharts)
+  pieChart?.dispose()
+  barChart?.dispose()
+  barDailyChart?.dispose()
+  lineChart?.dispose()
+})
+
+// Update charts when data or theme changes
+watch([() => taskStore.tasks, isDark], async () => {
+  await nextTick()
+  updatePieChart()
+  updateBarChart()
+  updateBarDailyChart()
+  updateLineChart()
+}, { deep: true })
+
+function goToOverdue() {
+  router.push('/tasks?filter=overdue')
+}
 </script>
 
 <template>
-  <div class="statistics">
-    <div class="statistics-header">
-      <h1>数据统计</h1>
-      <p>任务完成情况和统计分析</p>
+  <div class="statistics-page">
+    <div class="page-header">
+      <h2>数据统计</h2>
+      <p class="page-subtitle">任务完成情况分析</p>
     </div>
-    
-    <!-- 逾期任务提醒卡片 -->
-    <!-- 说明：如果需要 TaskList.vue 支持 filter=overdue 参数筛选，需要在该页面中添加对应逻辑 -->
-    <div v-if="tasks.length > 0" class="overdue-alert">
-      <div class="overdue-content">
-        <span class="overdue-icon">⚠️</span>
-        <span class="overdue-text">
-          <template v-if="overdueCount > 0">
-            逾期任务：<strong>{{ overdueCount }}</strong> 个
-          </template>
-          <template v-else>
-            暂无逾期任务，继续保持！🎉
-          </template>
+
+    <!-- Overdue Alert -->
+    <div
+      v-if="overdueCount > 0"
+      class="overdue-alert"
+      @click="goToOverdue"
+    >
+      <div class="alert-content">
+        <el-icon size="20" color="#ef4444"><Warning /></el-icon>
+        <span>
+          当前有 <strong>{{ overdueCount }}</strong> 个逾期任务未完成
         </span>
       </div>
-      <el-button 
-        v-if="overdueCount > 0" 
-        type="primary" 
-        link 
-        @click="goToOverdueTasks"
-      >
-        点击查看 →
-      </el-button>
+      <div class="alert-action">
+        <span>查看逾期任务</span>
+        <el-icon><ArrowRight /></el-icon>
+      </div>
     </div>
-    
-    <div class="statistics-content" ref="statsContentRef">
-      <!-- 第一行：任务完成比例 + 任务优先级分布 -->
-      <el-row :gutter="20">
-        <el-col :xs="24" :md="12">
-          <el-card shadow="hover" class="chart-card">
-            <template #header>
-              <div class="card-header">
-                <span>任务完成比例</span>
-              </div>
-            </template>
-            <div v-if="tasks.length > 0" ref="pieChartRef" class="chart-container"></div>
-            <div v-else class="empty-state">
-              <el-empty description="暂无数据" />
-            </div>
-          </el-card>
-        </el-col>
-        
-        <el-col :xs="24" :md="12">
-          <el-card shadow="hover" class="chart-card">
-            <template #header>
-              <div class="card-header">
-                <span>任务优先级分布</span>
-              </div>
-            </template>
-            <div v-if="tasks.length > 0" ref="priorityChartRef" class="chart-container"></div>
-            <div v-else class="empty-state">
-              <el-empty description="暂无数据" />
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
-      
-      <!-- 第二行：近7天完成任务数量和完成率趋势（双轴图表） -->
-      <el-row :gutter="20">
-        <el-col :span="24">
-          <el-card shadow="hover" class="chart-card">
-            <template #header>
-              <div class="card-header">
-                <span>近7天任务完成情况</span>
-              </div>
-            </template>
-            <div v-if="tasks.length > 0">
-              <div ref="barChartRef" class="chart-container"></div>
-              <div class="chart-note">
-                📌 柱状图：当日实际完成的任务数量；折线图：当日截止任务的完成比例（已完成 / 当日截止任务总数）
-              </div>
-            </div>
-            <div v-else class="empty-state">
-              <el-empty description="暂无数据" />
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
+
+    <!-- Charts Grid -->
+    <div class="charts-grid">
+      <!-- Pie Chart -->
+      <div class="chart-card">
+        <h3 class="chart-title">任务完成比例</h3>
+        <div ref="pieChartRef" class="chart-container"></div>
+      </div>
+
+      <!-- Priority Bar Chart -->
+      <div class="chart-card">
+        <h3 class="chart-title">优先级分布（未完成）</h3>
+        <div ref="barChartRef" class="chart-container"></div>
+      </div>
+
+      <!-- Daily Completion Bar Chart -->
+      <div class="chart-card chart-wide">
+        <h3 class="chart-title">近7天完成任务数量</h3>
+        <div ref="barDailyRef" class="chart-container"></div>
+      </div>
+
+      <!-- Completion Rate Line Chart -->
+      <div class="chart-card chart-wide">
+        <h3 class="chart-title">近7天任务完成率</h3>
+        <div ref="lineChartRef" class="chart-container"></div>
+      </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="summary-row">
+      <div class="summary-stat">
+        <span class="ss-value">{{ taskStore.totalCount }}</span>
+        <span class="ss-label">总任务数</span>
+      </div>
+      <div class="summary-stat">
+        <span class="ss-value text-success">{{ taskStore.completedCount }}</span>
+        <span class="ss-label">已完成</span>
+      </div>
+      <div class="summary-stat">
+        <span class="ss-value text-primary">{{ taskStore.incompleteCount }}</span>
+        <span class="ss-label">未完成</span>
+      </div>
+      <div class="summary-stat">
+        <span class="ss-value text-error">{{ taskStore.overdueTasks.length }}</span>
+        <span class="ss-label">已逾期</span>
+      </div>
+      <div class="summary-stat">
+        <span class="ss-value">
+          {{ taskStore.totalCount > 0 ? Math.round((taskStore.completedCount / taskStore.totalCount) * 100) : 0 }}%
+        </span>
+        <span class="ss-label">总完成率</span>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.statistics {
-  padding: 40px 20px;
+.statistics-page {
+  padding: 24px;
   max-width: 1200px;
   margin: 0 auto;
 }
 
-.statistics-header {
-  text-align: center;
-  margin-bottom: 60px;
-}
-
-.statistics-header h1 {
-  font-size: 36px;
+.page-header {
   margin-bottom: 20px;
-  color: var(--text-primary);
-  transition: color 0.3s;
 }
 
-.statistics-header p {
-  font-size: 18px;
-  color: var(--text-secondary);
-  max-width: 800px;
-  margin: 0 auto;
-  transition: color 0.3s;
+.page-header h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 4px;
 }
 
-/* 逾期任务提醒卡片样式 */
+.page-subtitle {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+/* Overdue Alert */
 .overdue-alert {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  background-color: #fdf6ec;
-  border: 1px solid #f5dab1;
-  border-radius: 12px;
-  padding: 16px 24px;
-  margin-bottom: 30px;
-  transition: all 0.3s ease;
+  background: var(--color-error-light);
+  border: 1px solid var(--color-error-border);
+  border-left: 4px solid var(--color-error);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
 }
 
-.dark .overdue-alert {
-  background-color: #3d2c1f;
-  border-color: #5c4033;
+.overdue-alert:hover {
+  transform: translateX(2px);
+  box-shadow: var(--shadow-sm);
 }
 
-.overdue-content {
+.alert-content {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--color-text);
 }
 
-.overdue-icon {
-  font-size: 24px;
+.alert-content strong {
+  color: var(--color-error);
+  font-weight: 700;
 }
 
-.overdue-text {
-  font-size: 16px;
-  color: #e6a23c;
-}
-
-.dark .overdue-text {
-  color: #f0b774;
-}
-
-.overdue-text strong {
-  font-size: 20px;
-  font-weight: bold;
-  margin: 0 4px;
-}
-
-.statistics-content {
+.alert-action {
   display: flex;
-  flex-direction: column;
-  gap: 40px;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--color-error);
+  font-weight: 500;
+}
+
+/* Charts Grid */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
 .chart-card {
-  transition: all 0.3s ease;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
-  overflow: hidden;
+  padding: 20px;
+  box-shadow: var(--shadow-card);
 }
 
-.chart-card:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  transform: translateY(-4px);
+.chart-wide {
+  grid-column: span 2;
 }
 
-/* 统计内容动画效果 */
-.stats-animation {
-  animation: statsAppear 0.8s ease-out forwards;
-}
-
-@keyframes statsAppear {
-  0% {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* 图表卡片的延迟动画 */
-.stats-animation .chart-card {
-  opacity: 0;
-  transform: translateY(20px);
-  animation: cardAppear 0.6s ease-out forwards;
-}
-
-.stats-animation .chart-card:nth-child(1) .chart-card {
-  animation-delay: 0.1s;
-}
-
-.stats-animation .chart-card:nth-child(2) .chart-card {
-  animation-delay: 0.2s;
-}
-
-.stats-animation .chart-card:nth-child(3) .chart-card {
-  animation-delay: 0.3s;
-}
-
-@keyframes cardAppear {
-  0% {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.card-header {
-  font-size: 16px;
+.chart-title {
+  font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
-  transition: color 0.3s;
+  color: var(--color-text);
+  margin-bottom: 12px;
 }
 
 .chart-container {
-  height: 350px;
-  width: 100%;
+  height: 240px;
 }
 
-.empty-state {
-  height: 350px;
+.chart-wide .chart-container {
+  height: 220px;
+}
+
+/* Summary */
+.summary-row {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-/* 图表注释样式 */
-.chart-note {
-  font-size: 12px;
-  color: var(--el-text-color-secondary, #909399);
+.summary-stat {
+  flex: 1;
+  min-width: 120px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 16px;
   text-align: center;
-  margin-top: 8px;
-  padding: 0 20px;
+  box-shadow: var(--shadow-card);
 }
 
-/* 响应式设计 */
+.ss-value {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.ss-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.text-success { color: #10b981; }
+.text-primary { color: #2563eb; }
+.text-error { color: #ef4444; }
+
 @media (max-width: 768px) {
-  .statistics {
-    padding: 20px 10px;
+  .statistics-page {
+    padding: 16px;
   }
-  
-  .statistics-header h1 {
-    font-size: 28px;
+
+  .charts-grid {
+    grid-template-columns: 1fr;
   }
-  
-  .chart-container {
-    height: 300px;
+
+  .chart-wide {
+    grid-column: span 1;
   }
-  
-  .empty-state {
-    height: 300px;
+
+  .summary-row {
+    gap: 10px;
   }
 }
 </style>

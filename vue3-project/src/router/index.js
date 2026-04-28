@@ -1,34 +1,43 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+import Layout from '../components/Layout.vue'
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(),
   routes: [
     {
       path: '/',
-      redirect: '/dashboard'
+      component: Layout,
+      redirect: '/dashboard',
+      children: [
+        {
+          path: 'dashboard',
+          name: 'Dashboard',
+          component: () => import('../views/HomeView.vue'),
+        },
+        {
+          path: 'tasks',
+          name: 'TaskList',
+          component: () => import('../views/TaskListView.vue'),
+        },
+        {
+          path: 'statistics',
+          name: 'Statistics',
+          component: () => import('../views/StatisticsView.vue'),
+        },
+        {
+          path: 'settings',
+          name: 'Settings',
+          component: () => import('../views/SettingsView.vue'),
+        },
+      ],
     },
     {
-      path: '/dashboard',
-      name: 'dashboard',
-      component: HomeView
+      path: '/task/:id',
+      name: 'TaskDetail',
+      component: () => import('../views/TaskDetail.vue'),
+      meta: { title: '任务详情' }
     },
-    {
-      path: '/tasks',
-      name: 'tasks',
-      component: () => import('../views/TaskListView.vue')
-    },
-    {
-      path: '/statistics',
-      name: 'statistics',
-      component: () => import('../views/StatisticsView.vue')
-    },
-    {
-      path: '/settings',
-      name: 'settings',
-      component: () => import('../views/SettingsView.vue')
-    }
-  ]
+  ],
 })
 
 export default router

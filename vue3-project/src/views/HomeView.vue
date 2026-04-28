@@ -1,947 +1,770 @@
-<template>
-  <div class="dashboard-container">
-    <!-- 欢迎区域 -->
-    <div class="welcome-section">
-      <div class="welcome-content">
-        <h1>欢迎回来，用户！</h1>
-        <p class="current-date">{{ currentDate }}</p>
-        <p class="deadline-tip" :class="{ 'no-deadline': todayTasksCount === 0 }">
-          {{ todayTasksCount > 0 ? `今天有 ${todayTasksCount} 个任务即将到期，加油！` : '今天没有到期任务，真棒！' }}
-        </p>
-      </div>
-    </div>
-
-    <!-- 统计卡片 -->
-    <el-row :gutter="20" class="stats-section">
-      <el-col :xs="12" :sm="12" :md="6" :lg="6" :xl="6">
-        <el-card class="stats-card" shadow="hover">
-          <div class="stats-content">
-            <div class="stats-icon total">
-              <el-icon><Document /></el-icon>
-            </div>
-            <div class="stats-info">
-              <p class="stats-label">总任务数</p>
-              <p class="stats-number">{{ totalTasksCount }}</p>
-              <p class="stats-tip">包含已完成和未完成</p>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="12" :sm="12" :md="6" :lg="6" :xl="6">
-        <el-card class="stats-card" shadow="hover">
-          <div class="stats-content">
-            <div class="stats-icon completed">
-              <el-icon><Check /></el-icon>
-            </div>
-            <div class="stats-info">
-              <p class="stats-label">已完成</p>
-              <p class="stats-number">{{ completedTasksCount }}</p>
-              <p class="stats-tip">完成率 {{ completionRate }}%</p>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="12" :sm="12" :md="6" :lg="6" :xl="6">
-        <el-card class="stats-card" shadow="hover">
-          <div class="stats-content">
-            <div class="stats-icon pending">
-              <el-icon><Clock /></el-icon>
-            </div>
-            <div class="stats-info">
-              <p class="stats-label">未完成</p>
-              <p class="stats-number">{{ pendingTasksCount }}</p>
-              <p class="stats-tip">剩余任务</p>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="12" :sm="12" :md="6" :lg="6" :xl="6">
-        <el-card class="stats-card" shadow="hover">
-          <div class="stats-content">
-            <div class="stats-icon today">
-              <el-icon><Timer /></el-icon>
-            </div>
-            <div class="stats-info">
-              <p class="stats-label">今日到期</p>
-              <p class="stats-number">{{ todayTasksCount }}</p>
-              <p class="stats-tip">需优先处理</p>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <!-- 优先级分布和今日进度 -->
-    <el-row :gutter="20" class="progress-section">
-      <el-col :xs="24" :md="12">
-        <el-card class="progress-card" shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <h2>任务优先级分布</h2>
-            </div>
-          </template>
-          <div class="priority-distribution">
-            <div v-for="(item, index) in priorityDistribution" :key="index" class="priority-item">
-              <div class="priority-info">
-                <span class="priority-label">{{ item.label }}</span>
-                <span class="priority-count">{{ item.count }} ({{ item.percentage }}%)</span>
-              </div>
-              <el-progress 
-                :percentage="item.percentage" 
-                :color="getPriorityColor(item.type)"
-                :stroke-width="8"
-                :show-text="false"
-              />
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :md="12">
-        <el-card class="progress-card" shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <h2>今日任务进度</h2>
-            </div>
-          </template>
-          <div class="today-progress">
-            <div v-if="todayTotalTasks > 0" class="progress-circle">
-              <el-progress 
-                type="circle" 
-                :percentage="todayProgressPercentage" 
-                :width="80"
-                :stroke-width="8"
-              />
-            </div>
-            <div v-else class="progress-circle">
-              <el-progress 
-                type="circle" 
-                :percentage="0" 
-                :width="80"
-                :stroke-width="8"
-                :color="'#909399'"
-              />
-            </div>
-            <div class="progress-info">
-              <p v-if="todayTotalTasks > 0" class="progress-text">已完成 {{ todayCompletedTasks }} / {{ todayTotalTasks }} 个今日任务</p>
-              <p v-else class="progress-text no-tasks">今日无到期任务，轻松一天！</p>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <!-- 逾期任务 -->
-    <el-row :gutter="20" v-if="overdueTasks.length > 0" class="overdue-section">
-      <el-col :span="24">
-        <el-card class="overdue-card" shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <h2>逾期任务</h2>
-            </div>
-          </template>
-          <div class="tasks-list">
-            <div v-for="task in overdueTasks" :key="task.id" class="task-item overdue-task">
-              <div class="task-content">
-                <h3 class="task-title high-priority">{{ task.title }}</h3>
-                <div class="task-meta">
-                  <el-tag type="danger" size="small" class="priority-tag">
-                    已逾期 {{ getOverdueDays(task.dueDate) }} 天
-                  </el-tag>
-                  <el-tag
-                    :type="getPriorityType(task.priority)"
-                    size="small"
-                    class="priority-tag"
-                  >
-                    {{ getPriorityText(task.priority) }}
-                  </el-tag>
-                  <span class="task-due-date">{{ task.dueDate }}</span>
-                </div>
-              </div>
-              <el-button 
-                type="success" 
-                size="small" 
-                circle 
-                @click="quickCompleteTask(task)"
-                class="quick-complete-btn"
-              >
-                <el-icon><Check /></el-icon>
-              </el-button>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <!-- 最近未完成任务和即将到来任务 -->
-    <el-row :gutter="20" class="tasks-section">
-      <el-col :xs="24" :md="16">
-        <el-card class="recent-tasks-card" shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <h2>最近未完成任务</h2>
-            </div>
-          </template>
-          <div v-if="recentTasks.length > 0" class="tasks-list">
-            <div v-for="task in recentTasks" :key="task.id" class="task-item no-checkbox">
-              <div class="task-content">
-                <h3 :class="{ 'high-priority': task.priority === 'high' }" class="task-title">{{ task.title }}</h3>
-                <div class="task-meta">
-                  <el-tag v-if="isTaskOverdue(task)" type="danger" size="small" class="priority-tag">
-                    已逾期
-                  </el-tag>
-                  <el-tag
-                    :type="getPriorityType(task.priority)"
-                    size="small"
-                    class="priority-tag"
-                  >
-                    {{ getPriorityText(task.priority) }}
-                  </el-tag>
-                  <span class="task-due-date">{{ task.dueDate }}</span>
-                </div>
-              </div>
-              <el-button 
-                type="success" 
-                size="small" 
-                circle 
-                @click="quickCompleteTask(task)"
-                class="quick-complete-btn"
-              >
-                <el-icon><Check /></el-icon>
-              </el-button>
-            </div>
-          </div>
-          <div v-else class="empty-state">
-            <el-empty description="暂无未完成任务" />
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :md="8">
-        <el-card class="upcoming-tasks-card" shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <h2>即将到来（未来3天）</h2>
-            </div>
-          </template>
-          <div v-if="upcomingTasks.length > 0" class="tasks-list">
-            <div v-for="task in upcomingTasks" :key="task.id" class="task-item">
-              <div class="task-content">
-                <h3 class="task-title">{{ task.title }}</h3>
-                <div class="task-meta">
-                  <el-tag
-                    :type="getPriorityType(task.priority)"
-                    size="small"
-                    class="priority-tag"
-                  >
-                    {{ getPriorityText(task.priority) }}
-                  </el-tag>
-                  <span class="task-due-date">{{ getDaysUntil(task.dueDate) }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-else class="empty-state">
-            <el-empty description="暂无即将到来的任务" />
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <!-- 快捷操作 -->
-    <el-card class="quick-actions-card" shadow="hover">
-      <template #header>
-        <div class="card-header">
-          <h2>快捷操作</h2>
-        </div>
-      </template>
-      <div class="quick-actions">
-        <el-button type="primary" size="large" @click="goToTasks" class="action-button add-task">
-          <el-icon><Plus /></el-icon>
-          添加新任务
-        </el-button>
-        <el-button type="success" size="large" @click="goToStats" class="action-button view-stats">
-          <el-icon><DataAnalysis /></el-icon>
-          查看数据统计
-        </el-button>
-
-      </div>
-    </el-card>
-  </div>
-</template>
-
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTaskStore } from '../stores/task'
 import { ElMessage } from 'element-plus'
-import { Document, Check, Clock, Timer, Plus, DataAnalysis } from '@element-plus/icons-vue'
+import {
+  Plus, TrendCharts, DataAnalysis, Odometer,
+  Warning, Clock, Calendar, CircleCheck, List, Check
+} from '@element-plus/icons-vue'
 
 const router = useRouter()
 const taskStore = useTaskStore()
 
-// 计算属性
-const totalTasksCount = computed(() => taskStore.tasks.length)
-const completedTasksCount = computed(() => taskStore.tasks.filter(task => task.completed).length)
-const pendingTasksCount = computed(() => taskStore.tasks.filter(task => !task.completed).length)
-
-// 完成率
-const completionRate = computed(() => {
-  if (totalTasksCount.value === 0) return 0
-  return Math.round((completedTasksCount.value / totalTasksCount.value) * 100)
+const today = computed(() => {
+  const d = new Date()
+  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${weekdays[d.getDay()]}`
 })
 
-// 计算今日到期任务数
-const todayTasksCount = computed(() => {
-  const today = new Date().toISOString().split('T')[0]
-  return taskStore.tasks.filter(task => {
-    return task.dueDate === today && !task.completed
-  }).length
-})
+const stats = computed(() => [
+  {
+    label: '总任务',
+    value: taskStore.totalCount,
+    icon: List,
+    gradient: 'linear-gradient(135deg, #2563eb, #0ea5e9)',
+    iconBg: 'rgba(255,255,255,0.2)',
+  },
+  {
+    label: '已完成',
+    value: taskStore.completedCount,
+    icon: CircleCheck,
+    gradient: 'linear-gradient(135deg, #10b981, #34d399)',
+    iconBg: 'rgba(255,255,255,0.2)',
+  },
+  {
+    label: '未完成',
+    value: taskStore.incompleteCount,
+    icon: Clock,
+    gradient: 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+    iconBg: 'rgba(255,255,255,0.2)',
+  },
+  {
+    label: '今日到期',
+    value: taskStore.todayDueCount,
+    icon: Calendar,
+    gradient: 'linear-gradient(135deg, #ef4444, #f87171)',
+    iconBg: 'rgba(255,255,255,0.2)',
+  },
+])
 
-// 最近未完成任务（按截止日期升序，取前5个）
-const recentTasks = computed(() => {
-  return taskStore.tasks
-    .filter(task => !task.completed)
-    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-    .slice(0, 3)
-})
+const priorityDist = computed(() => taskStore.incompletePriorityDistribution)
+const incompleteTotal = computed(() => taskStore.incompleteCount)
 
-// 逾期任务
-const overdueTasks = computed(() => {
-  const today = new Date().toISOString().split('T')[0]
-  return taskStore.tasks
-    .filter(task => {
-      return !task.completed && task.dueDate < today
-    })
-    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-})
-
-// 优先级分布
-const priorityDistribution = computed(() => {
-  const pendingTasks = taskStore.tasks.filter(task => !task.completed)
-  const totalPending = pendingTasks.length
-  
-  const highCount = pendingTasks.filter(task => task.priority === 'high').length
-  const mediumCount = pendingTasks.filter(task => task.priority === 'medium').length
-  const lowCount = pendingTasks.filter(task => task.priority === 'low').length
-  
-  return [
-    {
-      label: '高',
-      type: 'high',
-      count: highCount,
-      percentage: totalPending > 0 ? Math.round((highCount / totalPending) * 100) : 0
-    },
-    {
-      label: '中',
-      type: 'medium',
-      count: mediumCount,
-      percentage: totalPending > 0 ? Math.round((mediumCount / totalPending) * 100) : 0
-    },
-    {
-      label: '低',
-      type: 'low',
-      count: lowCount,
-      percentage: totalPending > 0 ? Math.round((lowCount / totalPending) * 100) : 0
-    }
-  ]
-})
-
-// 今日任务进度
-const todayTotalTasks = computed(() => {
-  const today = new Date().toISOString().split('T')[0]
-  return taskStore.tasks.filter(task => task.dueDate === today).length
-})
-
-const todayCompletedTasks = computed(() => {
-  const today = new Date().toISOString().split('T')[0]
-  return taskStore.tasks.filter(task => task.dueDate === today && task.completed).length
-})
-
-const todayProgressPercentage = computed(() => {
-  if (todayTotalTasks.value === 0) return 0
-  return Math.round((todayCompletedTasks.value / todayTotalTasks.value) * 100)
-})
-
-// 即将到来的任务（未来3天）
-const upcomingTasks = computed(() => {
-  const today = new Date()
-  const threeDaysLater = new Date(today)
-  threeDaysLater.setDate(today.getDate() + 3)
-  
-  const todayStr = today.toISOString().split('T')[0]
-  const threeDaysLaterStr = threeDaysLater.toISOString().split('T')[0]
-  
-  return taskStore.tasks
-    .filter(task => {
-      return !task.completed && task.dueDate > todayStr && task.dueDate <= threeDaysLaterStr
-    })
-    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-    .slice(0, 5)
-})
-
-// 当前日期
-const currentDate = ref('')
-
-// 优先级类型
-const getPriorityType = (priority) => {
-  switch (priority) {
-    case 'high': return 'danger'
-    case 'medium': return 'warning'
-    case 'low': return 'success'
-    default: return 'info'
-  }
+function priorityPct(count) {
+  if (incompleteTotal.value === 0) return 0
+  return Math.round((count / incompleteTotal.value) * 100)
 }
 
-// 优先级颜色
-const getPriorityColor = (priority) => {
-  switch (priority) {
-    case 'high': return '#f56c6c'
-    case 'medium': return '#e6a23c'
-    case 'low': return '#67c23a'
-    default: return '#909399'
-  }
-}
+const todayProgress = computed(() => taskStore.todayProgress)
+const overdueTasks = computed(() => taskStore.overdueTasks)
+const recentTasks = computed(() => taskStore.recentIncompleteTasks)
+const upcomingTasks = computed(() => taskStore.upcomingTasks)
 
-// 优先级文本
-const getPriorityText = (priority) => {
-  switch (priority) {
-    case 'high': return '高'
-    case 'medium': return '中'
-    case 'low': return '低'
-    default: return '未知'
-  }
-}
-
-// 格式化日期为 MM-DD
-const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  const [year, month, day] = dateStr.split('-')
-  return `${month}-${day}`
-}
-
-// 计算距离今天的天数
-const getDaysUntil = (dateStr) => {
-  if (!dateStr) return ''
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const targetDate = new Date(dateStr)
-  targetDate.setHours(0, 0, 0, 0)
-  const diffTime = targetDate - today
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  return `还剩 ${diffDays} 天`
-}
-
-// 计算逾期天数
-const getOverdueDays = (dateStr) => {
-  if (!dateStr) return 0
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const targetDate = new Date(dateStr)
-  targetDate.setHours(0, 0, 0, 0)
-  const diffTime = today - targetDate
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  return diffDays
-}
-
-// 判断任务是否逾期
-// 判断任务是否逾期
-const isTaskOverdue = (task) => {
-  if (task.completed) return false
-  if (!task.dueDate) return false
-  
-  // 确保日期格式一致
-  const today = new Date().toISOString().split('T')[0]
-  const taskDate = new Date(task.dueDate).toISOString().split('T')[0]
-  
-  return taskDate < today
-}
-
-// 快速完成任务
-const quickCompleteTask = (task) => {
-  task.completed = true
-  taskStore.updateTask(task)
-  ElMessage.success('任务已标记为完成')
-}
-
-
-
-// 跳转到任务列表
-const goToTasks = () => {
-  router.push('/tasks?showAddForm=true')
-}
-
-// 跳转到统计页面
-const goToStats = () => {
-  router.push('/statistics?showAnimation=true')
-}
-
-// 初始化
-onMounted(() => {
-  // 设置当前日期
+function overduedays(dueDate) {
+  const due = new Date(dueDate)
   const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1
-  const day = now.getDate()
-  currentDate.value = `${year}年${month}月${day}日`
-})
+  now.setHours(0, 0, 0, 0)
+  const diff = Math.floor((now.getTime() - due.getTime()) / 86400000)
+  return diff
+}
+
+function completeTask(id) {
+  taskStore.updateTask(id, { completed: true })
+  ElMessage.success('任务已完成!')
+}
+
+function goToTasks(filter) {
+  router.push(filter ? `/tasks?filter=${filter}` : '/tasks')
+}
+
+function goToStatistics() {
+  router.push('/statistics')
+}
+
+function formatDate(date) {
+  const d = new Date(date)
+  const m = d.getMonth() + 1
+  const day = d.getDate()
+  return `${m}月${day}日`
+}
+
+const priorityLabelMap = { high: '高', medium: '中', low: '低' }
 </script>
 
+<template>
+  <div class="dashboard" v-if="true">
+    <!-- Welcome Header -->
+    <div class="welcome-header">
+
+      <div class="welcome-text">
+        <h1>欢迎回来 👋</h1>
+        <p class="date-text">{{ today }}</p>
+        <p v-if="taskStore.todayDueCount > 0" class="due-hint">
+          今天有 <strong>{{ taskStore.todayDueCount }}</strong> 个任务到期
+        </p>
+        <p v-else class="due-hint no-due">今天没有到期任务，保持节奏！</p>
+      </div>
+      <div class="quick-actions">
+        <el-button type="primary" @click="goToTasks('new')" round>
+          <el-icon><Plus /></el-icon> 添加任务
+        </el-button>
+        <el-button @click="goToStatistics" round>
+          <el-icon><TrendCharts /></el-icon> 查看统计
+        </el-button>
+      </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+      <div
+        v-for="stat in stats"
+        :key="stat.label"
+        class="stat-card"
+        :style="{ background: stat.gradient }"
+      >
+        <div class="stat-content">
+          <div class="stat-value">{{ stat.value }}</div>
+          <div class="stat-label">{{ stat.label }}</div>
+        </div>
+        <div class="stat-icon-wrap" :style="{ background: stat.iconBg }">
+          <el-icon size="24" color="rgba(255,255,255,0.9)">
+            <component :is="stat.icon" />
+          </el-icon>
+        </div>
+      </div>
+    </div>
+
+    <div class="dashboard-grid">
+      <!-- Priority Distribution -->
+      <div class="card">
+        <h3 class="card-title">
+          <el-icon><DataAnalysis /></el-icon> 优先级分布
+          <span class="card-subtitle">（未完成任务）</span>
+        </h3>
+        <div v-if="incompleteTotal > 0" class="priority-bars">
+          <div class="priority-row">
+            <span class="priority-label-text">
+              <span class="dot dot-high"></span>高优先级
+            </span>
+            <div class="progress-bar-wrap">
+              <div
+                class="progress-bar-fill high"
+                :style="{ width: priorityPct(priorityDist.high) + '%' }"
+              />
+            </div>
+            <span class="priority-count">{{ priorityDist.high }}
+              <small>({{ priorityPct(priorityDist.high) }}%)</small>
+            </span>
+          </div>
+          <div class="priority-row">
+            <span class="priority-label-text">
+              <span class="dot dot-medium"></span>中优先级
+            </span>
+            <div class="progress-bar-wrap">
+              <div
+                class="progress-bar-fill medium"
+                :style="{ width: priorityPct(priorityDist.medium) + '%' }"
+              />
+            </div>
+            <span class="priority-count">{{ priorityDist.medium }}
+              <small>({{ priorityPct(priorityDist.medium) }}%)</small>
+            </span>
+          </div>
+          <div class="priority-row">
+            <span class="priority-label-text">
+              <span class="dot dot-low"></span>低优先级
+            </span>
+            <div class="progress-bar-wrap">
+              <div
+                class="progress-bar-fill low"
+                :style="{ width: priorityPct(priorityDist.low) + '%' }"
+              />
+            </div>
+            <span class="priority-count">{{ priorityDist.low }}
+              <small>({{ priorityPct(priorityDist.low) }}%)</small>
+            </span>
+          </div>
+        </div>
+        <div v-else class="empty-state">
+          <el-icon size="32" color="var(--color-text-muted)"><CircleCheck /></el-icon>
+          <p>所有任务已完成！</p>
+        </div>
+      </div>
+
+      <!-- Today's Progress -->
+      <div class="card today-progress-card">
+        <h3 class="card-title">
+          <el-icon><Odometer /></el-icon> 今日任务进度
+        </h3>
+        <div class="progress-ring-wrap">
+          <div class="progress-ring-container">
+            <svg viewBox="0 0 120 120" class="ring-svg">
+              <circle
+                cx="60" cy="60" r="50"
+                fill="none"
+                stroke="var(--color-border)"
+                stroke-width="10"
+              />
+              <circle
+                cx="60" cy="60" r="50"
+                fill="none"
+                :stroke="todayProgress >= 100 ? '#10b981' : '#2563eb'"
+                stroke-width="10"
+                stroke-linecap="round"
+                stroke-dasharray="314.16"
+                :stroke-dashoffset="314.16 * (1 - todayProgress / 100)"
+                transform="rotate(-90 60 60)"
+                style="transition: stroke-dashoffset 0.8s ease"
+              />
+            </svg>
+            <div class="ring-center">
+              <span class="ring-value">{{ todayProgress }}%</span>
+              <span class="ring-sub">完成率</span>
+            </div>
+          </div>
+          <div class="today-stats">
+            <div class="today-stat">
+              <span class="ts-num">{{ taskStore.todayDueTasks.filter(t => t.completed).length }}</span>
+              <span class="ts-label">已完成</span>
+            </div>
+            <div class="today-stat-divider"></div>
+            <div class="today-stat">
+              <span class="ts-num">{{ taskStore.todayDueTasks.filter(t => !t.completed).length }}</span>
+              <span class="ts-label">未完成</span>
+            </div>
+          </div>
+        </div>
+        <p v-if="taskStore.todayDueCount === 0" class="empty-hint">今天没有到期任务</p>
+      </div>
+    </div>
+
+    <!-- Overdue Tasks -->
+    <div v-if="overdueTasks.length > 0" class="overdue-section">
+      <div class="section-header">
+        <h3 class="section-title overdue-title">
+          <el-icon><Warning /></el-icon>
+          逾期任务
+          <el-tag type="danger" size="small" round>{{ overdueTasks.length }}</el-tag>
+        </h3>
+      </div>
+      <div class="overdue-list">
+        <div
+          v-for="task in overdueTasks"
+          :key="task.id"
+          class="overdue-card"
+        >
+          <div class="overdue-info">
+            <span class="overdue-title-text">{{ task.title }}</span>
+            <div class="overdue-meta">
+              <el-tag type="danger" size="small" round>逾期 {{ overduedays(task.dueDate) }} 天</el-tag>
+              <span :class="['priority-tag', `priority-${task.priority}`]">
+                {{ priorityLabelMap[task.priority] }}优先级
+              </span>
+            </div>
+          </div>
+          <el-button
+            type="success"
+            size="small"
+            round
+            @click="completeTask(task.id)"
+          >
+            <el-icon><Check /></el-icon> 完成
+          </el-button>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-grid">
+      <!-- Recent Incomplete Tasks -->
+      <div class="card">
+        <div class="section-header-row">
+          <h3 class="card-title">
+            <el-icon><Clock /></el-icon> 最近未完成任务
+          </h3>
+          <el-button link @click="goToTasks()" size="small">查看全部</el-button>
+        </div>
+        <div v-if="recentTasks.length > 0" class="task-list">
+          <div
+            v-for="task in recentTasks"
+            :key="task.id"
+            class="task-item"
+          >
+            <div class="task-item-info">
+              <span class="task-item-title">{{ task.title }}</span>
+              <span class="task-item-date">{{ formatDate(task.dueDate) }}</span>
+            </div>
+            <span :class="['priority-tag', `priority-${task.priority}`]">
+              {{ priorityLabelMap[task.priority] }}
+            </span>
+          </div>
+        </div>
+        <div v-else class="empty-state">
+          <el-icon size="28" color="var(--color-text-muted)"><CircleCheck /></el-icon>
+          <p>没有未完成任务</p>
+        </div>
+      </div>
+
+      <!-- Upcoming Tasks -->
+      <div class="card">
+        <div class="section-header-row">
+          <h3 class="card-title">
+            <el-icon><Calendar /></el-icon> 即将到来任务
+            <span class="card-subtitle">（未来3天）</span>
+          </h3>
+          <el-button link @click="goToTasks()" size="small">查看全部</el-button>
+        </div>
+        <div v-if="upcomingTasks.length > 0" class="task-list">
+          <div
+            v-for="task in upcomingTasks"
+            :key="task.id"
+            class="task-item"
+          >
+            <div class="task-item-info">
+              <span class="task-item-title">{{ task.title }}</span>
+              <span class="task-item-date">{{ formatDate(task.dueDate) }}</span>
+            </div>
+            <span :class="['priority-tag', `priority-${task.priority}`]">
+              {{ priorityLabelMap[task.priority] }}
+            </span>
+          </div>
+        </div>
+        <div v-else class="empty-state">
+          <el-icon size="28" color="var(--color-text-muted)"><Calendar /></el-icon>
+          <p>未来3天没有到期任务</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
 <style scoped>
-.dashboard-container {
+.dashboard {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Welcome */
+.welcome-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+}
+
+.welcome-text h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.date-text {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.due-hint {
+  font-size: 14px;
+  color: var(--color-warning);
+}
+.due-hint strong { font-weight: 600; }
+.due-hint.no-due { color: var(--color-success); }
+
+.quick-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  border-radius: 12px;
   padding: 20px;
-  min-height: 100vh;
-  gap: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+}
+
+.stat-content {
+  color: #fff;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.stat-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Dashboard Grid */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.card-subtitle {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+/* Priority bars */
+.priority-bars {
   display: flex;
   flex-direction: column;
+  gap: 14px;
 }
 
-.welcome-section {
-  margin-bottom: 20px;
-  padding: 30px;
-  background: var(--el-card-bg-color, #ffffff);
-  border-radius: 12px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+.priority-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.welcome-content h1 {
-  margin: 0 0 10px 0;
-  font-size: 24px;
+.priority-label-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  width: 72px;
+  flex-shrink: 0;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-high { background: #ef4444; }
+.dot-medium { background: #f59e0b; }
+.dot-low { background: #10b981; }
+
+.progress-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+.progress-bar-fill.high { background: linear-gradient(90deg, #ef4444, #f87171); }
+.progress-bar-fill.medium { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.progress-bar-fill.low { background: linear-gradient(90deg, #10b981, #34d399); }
+
+.priority-count {
+  font-size: 13px;
   font-weight: 600;
-  color: var(--el-text-color-primary, #303133);
+  color: var(--color-text);
+  width: 60px;
+  text-align: right;
+}
+.priority-count small {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-text-muted);
 }
 
-.current-date {
-  margin: 0 0 15px 0;
-  font-size: 16px;
-  color: var(--el-text-color-secondary, #606266);
+/* Today Progress */
+.today-progress-card {}
+
+.progress-ring-wrap {
+  display: flex;
+  align-items: center;
+  gap: 24px;
 }
 
-.deadline-tip {
-  margin: 0;
-  font-size: 14px;
-  color: var(--el-color-warning, #e6a23c);
-  font-weight: 500;
+.progress-ring-container {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  flex-shrink: 0;
 }
 
-.deadline-tip.no-deadline {
-  color: var(--el-color-success, #67c23a);
+.ring-svg {
+  width: 100%;
+  height: 100%;
 }
 
-.stats-section {
-  margin-bottom: 20px;
+.ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
-.progress-section {
-  margin-bottom: 20px;
+.ring-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text);
 }
 
+.ring-sub {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.today-stats {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.today-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.ts-num {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.ts-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.today-stat-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--color-border);
+}
+
+.empty-hint {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin-top: 12px;
+}
+
+/* Overdue */
 .overdue-section {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
-.tasks-section {
-  margin-bottom: 20px;
+.section-header {
+  margin-bottom: 12px;
 }
 
-.stats-card {
-  border-radius: 12px;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  overflow: hidden;
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
-.stats-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+.overdue-title {
+  color: var(--color-error);
 }
 
-.progress-card {
-  border-radius: 12px;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  overflow: hidden;
-}
-
-.progress-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+.overdue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .overdue-card {
-  border-radius: 12px;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  overflow: hidden;
-  border-left: 4px solid var(--el-color-danger, #f56c6c);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-error-light);
+  border: 1px solid var(--color-error-border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  gap: 12px;
+  transition: transform var(--transition-fast);
 }
 
 .overdue-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+  transform: translateX(2px);
 }
 
-.stats-content {
-  display: flex;
-  align-items: center;
-  padding: 20px;
-}
-
-.stats-icon {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 20px;
-  font-size: 24px;
-  color: white;
-}
-
-.stats-icon.total {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.stats-icon.completed {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-}
-
-.stats-icon.pending {
-  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-}
-
-.stats-icon.today {
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-}
-
-.stats-info {
+.overdue-info {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  min-width: 0;
 }
 
-.stats-label {
-  margin: 0 0 5px 0;
+.overdue-title-text {
+  display: block;
   font-size: 14px;
-  color: var(--el-text-color-secondary, #606266);
-}
-
-.stats-number {
-  margin: 0 0 5px 0;
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--el-text-color-primary, #303133);
-  line-height: 1.2;
-}
-
-.stats-tip {
-  margin: 0;
-  font-size: 12px;
-  color: var(--el-text-color-secondary, #606266);
-  font-weight: 400;
-}
-.recent-tasks-card,
-.upcoming-tasks-card,
-.quick-actions-card {
-  margin-bottom: 20px;
-  border-radius: 12px;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 6px;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overdue-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Bottom Grid */
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.section-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.section-header-row .card-title {
+  margin-bottom: 0;
+}
+
+.task-list {
   display: flex;
   flex-direction: column;
-}
-
-/* 任务区域行布局 */
-.tasks-section {
-  margin-bottom: 20px;
-}
-
-/* 左侧最近未完成任务卡片 */
-.recent-tasks-card .el-card__body {
-  padding: 20px;
-  max-height: 420px;
-  overflow-y: auto;
-}
-
-/* 右侧即将到来卡片样式 */
-.upcoming-tasks-card .el-card__body {
-  padding: 20px;
-}
-
-/* 美化滚动条 */
-.recent-tasks-card .el-card__body::-webkit-scrollbar {
-  width: 6px;
-}
-.recent-tasks-card .el-card__body::-webkit-scrollbar-track {
-  background: #f0f0f0;
-  border-radius: 3px;
-}
-.recent-tasks-card .el-card__body::-webkit-scrollbar-thumb {
-  background: #c0c4cc;
-  border-radius: 3px;
-}
-.recent-tasks-card .el-card__body::-webkit-scrollbar-thumb:hover {
-  background: #909399;
-}
-/* 深色模式适配 */
-.dark .recent-tasks-card .el-card__body::-webkit-scrollbar-track {
-  background: #2d2d2d;
-}
-.dark .recent-tasks-card .el-card__body::-webkit-scrollbar-thumb {
-  background: #5a5e66;
-}
-.dark .recent-tasks-card .el-card__body::-webkit-scrollbar-thumb:hover {
-  background: #7a7e8a;
-}
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.card-header h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--el-text-color-primary, #303133);
-}
-
-.tasks-list {
-  padding: 10px 0;
+  gap: 8px;
 }
 
 .task-item {
   display: flex;
   align-items: center;
-  padding: 15px 0;
-  border-bottom: 1px solid var(--el-border-color, #ebeef5);
-  transition: background-color 0.2s ease;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--color-surface-2);
+  border-radius: 8px;
+  border: 1px solid var(--color-border-light);
+  gap: 10px;
+  transition: background var(--transition-fast);
 }
 
 .task-item:hover {
-  background-color: var(--el-fill-color-light, #f5f7fa);
+  background: var(--color-border);
 }
 
-.task-item.no-checkbox {
-  padding-left: 0;
-}
-
-.task-item.overdue-task {
-  background-color: rgba(245, 108, 108, 0.05);
-}
-
-.task-item.overdue-task:hover {
-  background-color: rgba(245, 108, 108, 0.1);
-}
-
-.task-item:last-child {
-  border-bottom: none;
-}
-
-.task-checkbox {
-  margin-right: 15px;
-}
-
-.task-content {
+.task-item-info {
   flex: 1;
-  margin-right: 10px;
+  min-width: 0;
 }
 
-.task-title {
-  margin: 0 0 8px 0;
-  font-size: 16px;
+.task-item-title {
+  display: block;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--el-text-color-primary, #303133);
-  transition: all 0.2s ease;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 2px;
 }
 
-.task-title.high-priority {
-  color: var(--el-color-danger, #f56c6c);
-  font-weight: 600;
-}
-
-.task-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.priority-tag {
-  margin-right: 10px;
-}
-
-.task-due-date {
-  font-size: 14px;
-  color: var(--el-text-color-secondary, #606266);
+.task-item-date {
+  font-size: 12px;
+  color: var(--color-text-muted);
 }
 
 .empty-state {
-  padding: 40px 0;
-  text-align: center;
-}
-
-.quick-actions {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-  padding: 20px 0;
-}
-
-.action-button {
-  flex: 1;
-  min-width: 200px;
-  height: 50px;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.add-task {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-}
-
-.view-stats {
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-  border: none;
-}
-
-
-
-.quick-complete-btn {
-  flex-shrink: 0;
-  margin-left: 10px;
-  transition: all 0.2s ease;
-}
-
-.quick-complete-btn:hover {
-  transform: scale(1.1);
-}
-
-/* 优先级分布样式 */
-.priority-distribution {
-  padding: 10px 0;
-}
-
-.priority-item {
-  margin-bottom: 15px;
-}
-
-.priority-item:last-child {
-  margin-bottom: 0;
-}
-
-.priority-info {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 14px;
-  color: var(--el-text-color-primary, #303133);
-}
-
-.priority-label {
-  font-weight: 500;
-}
-
-.priority-count {
-  color: var(--el-text-color-secondary, #606266);
-}
-
-/* 今日进度样式 */
-.today-progress {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px 0;
+  gap: 8px;
+  padding: 24px 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
 }
 
-.progress-circle {
-  margin-bottom: 20px;
+/* Responsive */
+@media (max-width: 1024px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
-.progress-info {
-  text-align: center;
-}
-
-.progress-text {
-  margin: 0;
-  font-size: 14px;
-  color: var(--el-text-color-primary, #303133);
-}
-
-.progress-text.no-tasks {
-  color: var(--el-color-success, #67c23a);
-  font-weight: 500;
-}
-/* 强制左侧卡片滚动 */
-.recent-tasks-card .el-card__body {
-  overflow: visible !important;
-  height: auto !important;
-  padding: 0 !important;
-}
-
-.recent-tasks-card .tasks-list {
-  max-height: 420px !important;
-  overflow-y: auto !important;
-  display: block !important;
-  height: auto !important;
-  padding: 10px 20px !important;
-}
-
-/* 确保右侧卡片不受影响 */
-.upcoming-tasks-card .el-card__body {
-  overflow: visible !important;
-  height: auto !important;
-}
-
-/* 响应式设计 */
 @media (max-width: 768px) {
-  .dashboard-container {
-    padding: 10px;
-    gap: 10px;
+  .dashboard {
+    padding: 16px;
   }
-  
-  .welcome-section {
-    padding: 20px;
-    margin-bottom: 10px;
-  }
-  
-  .welcome-content h1 {
-    font-size: 20px;
-  }
-  
-  .stats-content {
-    padding: 15px;
-  }
-  
-  .stats-icon {
-    width: 50px;
-    height: 50px;
-    font-size: 20px;
-  }
-  
-  .stats-number {
-    font-size: 28px;
-  }
-  
-  .action-button {
-    width: 100%;
-    min-width: unset;
-  }
-  
-  .priority-info {
+
+  .welcome-header {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
   }
-  
-  .task-meta {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 5px;
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
   }
-  
-  .quick-complete-btn {
-    margin-left: 0;
-    margin-top: 10px;
+
+  .dashboard-grid,
+  .bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-value {
+    font-size: 24px;
   }
 }
 </style>

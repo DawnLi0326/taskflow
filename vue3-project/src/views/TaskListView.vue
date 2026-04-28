@@ -1,1369 +1,825 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { Edit, Delete, Filter, Sort, Search, Check } from '@element-plus/icons-vue'
-import { useTaskStore } from '../stores/task'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { InfoFilled, Plus, Sort, Rank, Calendar, Edit, Delete, DeleteFilled } from '@element-plus/icons-vue'
+import { useTaskStore } from '../stores/task'
+import { useSettingsStore } from '../stores/settings'
 
-const DEFAULT_NEW_TASK = {
-  title: '',
-  completed: false,
-  dueDate: '',
-  priority: 'medium'
+// Constants
+const FILTER_STATUS = {
+  ALL: 'all',
+  COMPLETED: 'completed',
+  INCOMPLETE: 'incomplete',
+  OVERDUE: 'overdue'
 }
 
-const taskStore = useTaskStore()
+const SORT_ORDER = {
+  DUE_DATE: 'dueDate',
+  PRIORITY: 'priority',
+  CUSTOM: 'custom'
+}
+
+const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' }
+
+// Store and route
 const route = useRoute()
+const router = useRouter()
+const taskStore = useTaskStore()
+const settingsStore = useSettingsStore()
 
-const addTaskFormRef = ref(null)
-
-const tasks = computed(() => taskStore.tasks)
-
-// 直接使用 taskStore.tasks 作为唯一数据源
-
-const newTask = ref({ ...DEFAULT_NEW_TASK })
+// State
+const hoveredTaskId = ref(null)
+const dialogVisible = ref(false)
 const editingTask = ref(null)
-const editForm = ref({})
+const form = ref({ title: '', dueDate: '', priority: 'medium', completed: false })
+const formRef = ref()
+const filterStatus = ref(FILTER_STATUS.ALL)
+const searchQuery = ref('')
+const selectedIds = ref([])
 
-const filterStatus = ref('all')
-const sortMode = ref('dueDate') // 排序模式：dueDate, priority, custom
-const searchKeyword = ref('')
-const priorityOrder = { high: 0, medium: 1, low: 2 }
+// Computed
+const today = computed(() => new Date().toISOString().split('T')[0])
 
-// 存储选中的已完成任务的 id
-const selectedCompletedTasks = ref([])
+const sortedTasks = computed(() => {
+  const all = [...taskStore.tasks]
+  const order = settingsStore.sortOrder
 
-// 切换单个任务的选中状态
-const toggleSelectTask = (taskId) => {
-  const index = selectedCompletedTasks.value.indexOf(taskId)
-  if (index === -1) {
-    selectedCompletedTasks.value.push(taskId)
+  if (order === SORT_ORDER.DUE_DATE) {
+    return all.sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
+  } else if (order === SORT_ORDER.PRIORITY) {
+    const pOrder = { high: 0, medium: 1, low: 2 }
+    return all.sort((a, b) => pOrder[a.priority] - pOrder[b.priority])
   } else {
-    selectedCompletedTasks.value.splice(index, 1)
+    return all.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   }
-}
-
-// 批量删除选中的已完成任务
-const deleteSelectedTasks = async () => {
-  if (selectedCompletedTasks.value.length === 0) {
-    ElMessage.info('请先选择要删除的任务')
-    return
-  }
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedCompletedTasks.value.length} 个已完成任务吗？此操作不可撤销。`,
-      '警告',
-      {
-        confirmButtonText: '确定删除',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    )
-    // 从 store 中过滤掉选中的任务
-    const remainingTasks = taskStore.tasks.filter(task => !selectedCompletedTasks.value.includes(task.id))
-    taskStore.setTasks(remainingTasks)
-    selectedCompletedTasks.value = [] // 清空选中
-    ElMessage.success('已删除选中的任务')
-  } catch {
-    // 用户取消
-  }
-}
-
-// 全选/取消全选已完成任务
-const selectAllCompletedTasks = (value) => {
-  if (value) {
-    // 全选所有已完成任务
-    selectedCompletedTasks.value = completedTasks.value.map(task => task.id)
-  } else {
-    // 取消全选
-    selectedCompletedTasks.value = []
-  }
-}
-
-// 检查是否全选
-const isAllSelected = computed(() => {
-  return completedTasks.value.length > 0 && selectedCompletedTasks.value.length === completedTasks.value.length
 })
 
-const sortByDate = (a, b) => {
-  const timestampA = new Date(a.dueDate).getTime()
-  const timestampB = new Date(b.dueDate).getTime()
-  if (isNaN(timestampA)) return 1
-  if (isNaN(timestampB)) return -1
-  return timestampA - timestampB
-}
-
-const sortByPriority = (a, b) => {
-  const priorityA = priorityOrder[a.priority] ?? 999
-  const priorityB = priorityOrder[b.priority] ?? 999
-  return priorityA - priorityB
-}
-
-// 过滤后的任务（不包含排序，用于筛选显示）
 const filteredTasks = computed(() => {
-  let result = [...taskStore.tasks]
-
-  if (searchKeyword.value.trim()) {
-    const keyword = searchKeyword.value.toLowerCase().trim()
-    result = result.filter(task => task.title.toLowerCase().includes(keyword))
+  let list = sortedTasks.value
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    list = list.filter(t => t.title.toLowerCase().includes(q))
   }
 
-  if (filterStatus.value !== 'all') {
-    if (filterStatus.value === 'completed') {
-      result = result.filter(task => task.completed)
-    } else if (filterStatus.value === 'pending') {
-      result = result.filter(task => !task.completed)
-    } else if (filterStatus.value === 'overdue') {
-      // 逾期筛选：截止日期早于今天且未完成
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const todayStr = today.toISOString().split('T')[0]
-      result = result.filter(task => {
-        if (task.completed) return false
-        if (!task.dueDate) return false
-        return task.dueDate < todayStr
-      })
-    }
+  switch (filterStatus.value) {
+    case FILTER_STATUS.COMPLETED:
+      return list.filter(t => t.completed)
+    case FILTER_STATUS.INCOMPLETE:
+      return list.filter(t => !t.completed)
+    case FILTER_STATUS.OVERDUE:
+      return list.filter(t => !t.completed && t.dueDate < today.value)
+    default:
+      return list
   }
-
-  return result
 })
 
+const incompleteTasks = computed(() =>
+  filteredTasks.value.filter(t => !t.completed)
+)
 
+const completedTasks = computed(() =>
+  filteredTasks.value.filter(t => t.completed)
+)
 
-// 未完成任务（可拖拽排序）
-const uncompletedTasks = computed({
-  get: () => {
-    // 获取所有未完成任务
-    let allUncompleted = taskStore.tasks.filter(task => !task.completed)
-    
-    // 如果是逾期筛选模式，则只显示逾期的未完成任务
-    if (filterStatus.value === 'overdue') {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const todayStr = today.toISOString().split('T')[0]
-      allUncompleted = allUncompleted.filter(task => {
-        if (!task.dueDate) return false
-        return task.dueDate < todayStr
-      })
-    }
-    
-    // 应用搜索和状态过滤
-    let filtered = [...allUncompleted]
-    if (searchKeyword.value.trim()) {
-      const keyword = searchKeyword.value.toLowerCase().trim()
-      filtered = filtered.filter(task => task.title.toLowerCase().includes(keyword))
-    }
-    
-    if (filterStatus.value === 'completed') {
-      // 不显示未完成任务
-      return []
-    }
-    
-    // 应用排序
-    if (sortMode.value === 'custom') {
-      // 自定义顺序，不排序
-      return filtered
-    } else if (sortMode.value === 'dueDate') {
-      filtered.sort(sortByDate)
-    } else if (sortMode.value === 'priority') {
-      filtered.sort(sortByPriority)
-    }
-    
-    return filtered
+const draggableList = computed({
+  get() {
+    return incompleteTasks.value
   },
-  set: (newOrder) => {
-    // 获取当前已完成的任务（从 taskStore 中获取，确保包含所有任务）
-    const completedTasksList = taskStore.tasks.filter(task => task.completed)
-    
-    // 按照新顺序排列未完成任务，并添加已完成任务在末尾
-    const finalTasks = [...newOrder, ...completedTasksList]
-    
-    // 直接更新 store
-    taskStore.setTasks(finalTasks)
-    
-    // 设置为自定义排序模式
-    sortMode.value = 'custom'
-    
-    // 保存排序模式和未完成任务顺序到 localStorage
-    localStorage.setItem('taskSortMode', 'custom')
-    const uncompletedIds = newOrder.map(task => task.id)
-    localStorage.setItem('uncompletedTaskOrder', JSON.stringify(uncompletedIds))
+  set(newVal) {
+    taskStore.reorderTasks(newVal)
   }
 })
 
-// 已完成任务（不可拖拽）
-const completedTasks = computed(() => {
-  // 获取所有已完成任务
-  const allCompleted = taskStore.tasks.filter(task => task.completed)
-  
-  // 应用搜索和状态过滤
-  let filtered = [...allCompleted]
-  if (searchKeyword.value.trim()) {
-    const keyword = searchKeyword.value.toLowerCase().trim()
-    filtered = filtered.filter(task => task.title.toLowerCase().includes(keyword))
-  }
-  
-  if (filterStatus.value === 'completed') {
-    // 只显示已完成任务
-  } else if (filterStatus.value === 'pending') {
-    // 不显示已完成任务
-    return []
-  }
-  
-  // 已完成任务按完成时间倒序排列
-  return filtered.sort((a, b) => {
-    // 这里可以根据需要调整排序逻辑
-    return b.id - a.id // 按创建时间倒序
-  })
-})
-
-const taskStats = computed(() => {
-  const total = tasks.value.length
-  const completed = tasks.value.filter(task => task.completed).length
-  const pending = total - completed
-  const today = formatDate(new Date())
-  const todayDue = tasks.value.filter(task => !task.completed && task.dueDate === today).length
-  const highPriority = tasks.value.filter(task => !task.completed && task.priority === 'high').length
-  return { total, completed, pending, todayDue, highPriority }
-})
-
-const resetNewTask = () => {
-  newTask.value = { ...DEFAULT_NEW_TASK }
-}
-
-onMounted(() => {
-  // 处理从统计页面跳转过来的逾期筛选
-  if (route.query.filter === 'overdue') {
-    console.log('检测到逾期任务筛选参数，正在设置筛选状态...')
-    filterStatus.value = 'overdue'
-  }
-
-  // 处理从首页跳转过来的添加任务表单显示
-  if (route.query.showAddForm === 'true') {
-    console.log('检测到显示添加任务表单参数，正在滚动到表单...')
-    setTimeout(() => {
-      if (addTaskFormRef.value) {
-        addTaskFormRef.value.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start',
-          inline: 'nearest'
-        })
-        // 添加动画效果
-        addTaskFormRef.value.classList.add('form-animation')
-      }
-    }, 100)
-  }
-
-  // 从 localStorage 恢复排序模式
-  const savedSortMode = localStorage.getItem('taskSortMode')
-  if (savedSortMode) {
-    sortMode.value = savedSortMode
-  }
-  
-  // 如果是自定义排序模式，恢复未完成任务的顺序
-  if (sortMode.value === 'custom') {
-    const savedOrder = localStorage.getItem('uncompletedTaskOrder')
-    if (savedOrder) {
-      try {
-        const uncompletedIds = JSON.parse(savedOrder)
-        const currentTasks = [...taskStore.tasks]
-        
-        // 只有当保存的排序包含当前任务时才应用排序
-        if (uncompletedIds.length > 0) {
-          // 将未完成任务按照保存的顺序排列
-          const uncompletedTasksFromStore = currentTasks.filter(task => !task.completed)
-          const completedTasksFromStore = currentTasks.filter(task => task.completed)
-          
-          // 按照保存的顺序重新排列未完成任务
-          const sortedUncompleted = uncompletedIds
-            .map(id => uncompletedTasksFromStore.find(task => task.id === id))
-            .filter(Boolean)
-          
-          // 合并：排序后的未完成任务 + 已完成任务
-          const reorderedTasks = [...sortedUncompleted, ...completedTasksFromStore]
-          
-          // 只有当重新排序后的任务数量与当前任务数量相同时才更新
-          if (reorderedTasks.length === currentTasks.length) {
-            taskStore.setTasks(reorderedTasks)
-          }
-        }
-        return
-      } catch (e) {
-        // 如果解析失败，使用默认顺序
-        console.error('恢复排序失败:', e)
-      }
+const allSelectedForPage = computed({
+  get() {
+    if (completedTasks.value.length === 0) return false
+    return completedTasks.value.every(t => selectedIds.value.includes(t.id))
+  },
+  set(val) {
+    if (val) {
+      selectedIds.value = completedTasks.value.map(t => t.id)
+    } else {
+      selectedIds.value = []
     }
   }
 })
 
-// 处理排序模式变化
-const handleSortModeChange = (newMode) => {
-  if (newMode !== 'custom') {
-    // 清除自定义顺序
-    localStorage.removeItem('uncompletedTaskOrder')
-    localStorage.setItem('taskSortMode', newMode)
-  }
+// Lifecycle
+onMounted(() => {
+  const f = route.query.filter
+  if (f === 'new') openAddDialog()
+  else if (f === 'overdue') filterStatus.value = FILTER_STATUS.OVERDUE
+})
+
+watch(() => route.query.filter, (f) => {
+  if (f === 'new') openAddDialog()
+  else if (f === 'overdue') filterStatus.value = FILTER_STATUS.OVERDUE
+})
+
+function openAddDialog() {
+  editingTask.value = null
+  form.value = { title: '', dueDate: today.value, priority: 'medium', completed: false }
+  dialogVisible.value = true
 }
 
-// 拖拽结束处理函数 - 这是核心！
-const handleDragEnd = (evt) => {
-  // 由于 draggable 使用 v-model 绑定 uncompletedTasks，
-  // 拖拽结束后 uncompletedTasks 的 setter 会被自动调用
-  // 这里确保设置为自定义排序模式
-  sortMode.value = 'custom'
-  localStorage.setItem('taskSortMode', 'custom')
-  
-  // 保存未完成任务顺序到 localStorage
-  const uncompletedIds = uncompletedTasks.value.map(task => task.id)
-  localStorage.setItem('uncompletedTaskOrder', JSON.stringify(uncompletedIds))
+function openEditDialog(task) {
+  editingTask.value = task
+  form.value = { title: task.title, dueDate: task.dueDate, priority: task.priority, completed: task.completed }
+  dialogVisible.value = true
 }
 
-const addTask = () => {
-  const title = newTask.value.title.trim()
-  if (!title) return
-
-  const task = {
-    ...newTask.value
-  }
-
-  if (task.dueDate) {
-    task.dueDate = formatDate(task.dueDate)
-  }
-
-  taskStore.addTask(task)
-  resetNewTask()
-  
-  // 显示添加成功提示
-  ElMessage({
-    message: '添加任务成功',
-    type: 'success',
-    duration: 2000
-  })
-}
-
-const findTaskIndexById = (taskId) => {
-  return tasks.value.findIndex(task => task.id === taskId)
-}
-
-const findTaskById = (taskId) => {
-  return tasks.value.find(task => task.id === taskId)
-}
-
-const startEdit = (task) => {
-  if (!task) return
-  editingTask.value = task.id
-  editForm.value = { ...task }
-}
-
-const saveEdit = () => {
-  const updatedTask = { ...editForm.value }
-  if (updatedTask.dueDate) {
-    updatedTask.dueDate = formatDate(updatedTask.dueDate)
-  }
-  taskStore.updateTask(updatedTask)
+function closeDialog() {
+  dialogVisible.value = false
   editingTask.value = null
 }
 
-const cancelEdit = () => {
-  editingTask.value = null
+async function submitForm() {
+  try {
+    await formRef.value.validate()
+    if (editingTask.value) {
+      taskStore.updateTask(editingTask.value.id, { ...form.value })
+      ElMessage.success('任务已更新')
+    } else {
+      taskStore.addTask({ ...form.value })
+      ElMessage.success('任务已添加')
+    }
+    closeDialog()
+  } catch {
+    // validation failed
+  }
 }
 
-const deleteTask = (taskId) => {
-  taskStore.deleteTask(taskId)
+async function deleteTask(id, title) {
+  try {
+    await ElMessageBox.confirm(`确定要删除任务"${title}"吗？`, '删除确认', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+      confirmButtonClass: 'el-button--danger',
+    })
+    taskStore.deleteTask(id)
+    ElMessage.success('任务已删除')
+  } catch {
+    // cancelled
+  }
 }
 
-// 删除单个任务（带二次确认）
-const deleteTaskWithConfirm = async (taskId) => {
+async function batchDelete() {
+  if (selectedIds.value.length === 0) return
   try {
     await ElMessageBox.confirm(
-      '确定要删除这个已完成任务吗？此操作不可撤销。',
-      '警告',
+      `确定要删除选中的 ${selectedIds.value.length} 个任务吗？`,
+      '批量删除',
       {
-        confirmButtonText: '确定删除',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+    taskStore.deleteTasks(selectedIds.value)
+    selectedIds.value = []
+    ElMessage.success('批量删除成功')
+  } catch {
+    // cancelled
+  }
+}
+
+async function clearCompleted() {
+  if (completedTasks.value.length === 0) return
+  try {
+    await ElMessageBox.confirm('确定要清除所有已完成任务吗？', '清除确认', {
+      confirmButtonText: '清除',
+      cancelButtonText: '取消',
+      type: 'warning',
+      confirmButtonClass: 'el-button--danger',
+    })
+    taskStore.clearCompleted()
+    selectedIds.value = []
+    ElMessage.success('已清除所有完成任务')
+  } catch {
+    // cancelled
+  }
+}
+
+async function toggleComplete(task) {
+  if (!task.completed) {
+    try {
+      await ElMessageBox.confirm(
+        '是否标记为已完成？',
+        '确认操作',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning',
+        }
+      )
+      taskStore.updateTask(task.id, { completed: true })
+    } catch {
+      // cancelled
+    }
+  }
+}
+
+async function toggleCompleteFromCompleted(task) {
+  try {
+    await ElMessageBox.confirm(
+      '该任务已完成，是否要重新打开（变为未完成）？',
+      '确认操作',
+      {
+        confirmButtonText: '重新打开',
         cancelButtonText: '取消',
         type: 'warning',
       }
     )
-    taskStore.deleteTask(taskId)
-    // 从选中列表中移除
-    const index = selectedCompletedTasks.value.indexOf(taskId)
-    if (index !== -1) {
-      selectedCompletedTasks.value.splice(index, 1)
-    }
-    ElMessage.success('已删除任务')
+    taskStore.updateTask(task.id, { completed: false })
+    ElMessage.success('任务已重新打开')
   } catch {
-    // 用户取消
+    // cancelled
   }
 }
 
-const updateStatus = (taskId, completed) => {
-  taskStore.updateStatus(taskId, completed)
+function isOverdue(task) {
+  return !task.completed && task.dueDate < today.value
 }
 
-
-
-const formatDate = (date) => {
-  if (!date) return ''
-  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return date
-  }
+function formatDate(date) {
   const d = new Date(date)
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const getPriorityInfo = (priority) => {
-  const priorityMap = {
-    high: { label: '高', icon: '🔥' },
-    medium: { label: '中', icon: '⚠️' },
-    low: { label: '低', icon: '✅' }
-  }
-  return priorityMap[priority] || { label: '未知', icon: '❓' }
+function goToDetail(id) {
+  router.push(`/task/${id}`)
 }
 
-// 判断任务是否逾期
-// 判断任务是否逾期
-const isTaskOverdue = (task) => {
-  if (task.completed) return false
-  if (!task.dueDate) return false
-  
-  // 确保日期格式一致
-  const today = new Date().toISOString().split('T')[0]
-  const taskDate = new Date(task.dueDate).toISOString().split('T')[0]
-  
-  return taskDate < today
+const formRules = {
+  title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
+  dueDate: [{ required: true, message: '请选择截止日期', trigger: 'change' }],
+  priority: [{ required: true, message: '请选择优先级', trigger: 'change' }],
 }
 </script>
 
 <template>
-  <div class="task-list">
-    <div class="task-list-header">
-      <h1>任务列表</h1>
-      <p>管理和跟踪您的任务</p>
+  <div class="task-list-page">
+    <!-- Header and Filters -->
+    <div class="header-container">
+      <div class="page-header">
+        <div class="header-left">
+          <h2>任务列表</h2>
+          <span class="task-count">共 {{ taskStore.totalCount }} 个任务</span>
+        </div>
+        <el-button type="primary" @click="openAddDialog" round>
+          <el-icon><Plus /></el-icon> 添加新任务
+        </el-button>
+      </div>
+
+      <!-- Filters -->
+      <div class="filters-row">
+        <div class="filter-controls">
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索任务..."
+            clearable
+            class="search-input"
+            prefix-icon="Search"
+          />
+          <el-radio-group v-model="filterStatus">
+            <el-radio-button value="all">全部 ({{ taskStore.totalCount }})</el-radio-button>
+            <el-radio-button value="incomplete">未完成 ({{ taskStore.incompleteCount }})</el-radio-button>
+            <el-radio-button value="completed">已完成 ({{ taskStore.completedCount }})</el-radio-button>
+            <el-radio-button value="overdue">逾期 ({{ taskStore.overdueTasks.length }})</el-radio-button>
+          </el-radio-group>
+          <el-select v-model="settingsStore.sortOrder" placeholder="排序方式" size="small" class="sort-select">
+            <el-option value="dueDate" label="按截止日期" />
+            <el-option value="priority" label="按优先级" />
+            <el-option value="custom" label="自定义排序" />
+          </el-select>
+        </div>
+      </div>
     </div>
 
-    <div class="add-task-form" ref="addTaskFormRef">
-      <h2>添加新任务</h2>
-      <el-form :model="newTask" @submit.prevent="addTask" size="default">
-        <div class="form-row">
-          <div class="form-item">
-            <el-form-item label="任务标题">
-              <el-input v-model="newTask.title" placeholder="输入任务标题" required />
-            </el-form-item>
-          </div>
-          <div class="form-item">
-            <el-form-item label="截止日期">
-              <el-date-picker v-model="newTask.dueDate" type="date" placeholder="选择日期" style="width: 100%;" />
-            </el-form-item>
-          </div>
-          <div class="form-item">
-            <el-form-item label="优先级">
-              <el-select v-model="newTask.priority" placeholder="选择优先级" style="width: 100%;">
-                <el-option value="high" label="高" />
-                <el-option value="medium" label="中" />
-                <el-option value="low" label="低" />
-              </el-select>
-            </el-form-item>
-          </div>
-          <div class="form-item completed-item">
-            <el-form-item label="状态">
-              <el-checkbox v-model="newTask.completed" label="已完成" />
-            </el-form-item>
-          </div>
-        </div>
-
-        <div class="form-actions">
-          <el-button type="primary" @click="addTask">添加任务</el-button>
-        </div>
-
-        <div class="mobile-form-actions">
-          <div class="completed-checkbox">
-            <el-checkbox v-model="newTask.completed" label="已完成" />
-          </div>
-          <div class="add-button">
-            <el-button type="primary" @click="addTask">添加任务</el-button>
-          </div>
-        </div>
-      </el-form>
-    </div>
-
-    <el-card class="dashboard-card" shadow="hover">
-      <el-row :gutter="20">
-        <el-col :xs="12" :sm="12" :md="8" :lg="5" :xl="5">
-          <el-card shadow="hover" class="stat-card">
-            <div class="stat-content">
-              <div class="stat-icon">📋</div>
-              <div class="stat-info">
-                <div class="stat-label">总任务数</div>
-                <div class="stat-value">{{ taskStats.total }}</div>
+    <!-- Incomplete Tasks (Draggable) -->
+    <div class="section-block incomplete-section" v-if="filterStatus !== FILTER_STATUS.COMPLETED">
+      <div class="section-label">
+        <span>未完成任务 ({{ incompleteTasks.length }})</span>
+        <small class="drag-hint" v-if="settingsStore.sortOrder === SORT_ORDER.CUSTOM">
+          <el-icon><Sort /></el-icon> 可拖拽排序
+        </small>
+      </div>
+      <div v-if="incompleteTasks.length > 0">
+        <draggable
+          v-model="draggableList"
+          item-key="id"
+          handle=".drag-handle"
+          :disabled="settingsStore.sortOrder !== SORT_ORDER.CUSTOM"
+          animation="200"
+          ghost-class="dragging-ghost"
+        >
+          <template #item="{ element }">
+            <div class="task-card" :class="{ overdue: isOverdue(element) }" @mouseenter="hoveredTaskId = element.id" @mouseleave="hoveredTaskId = null">
+              <div
+                v-if="settingsStore.sortOrder === SORT_ORDER.CUSTOM"
+                class="drag-handle"
+                title="拖拽排序"
+              >
+                <el-icon><Rank /></el-icon>
+              </div>
+              <el-checkbox
+                :model-value="element.completed"
+                @change="toggleComplete(element)"
+                class="task-checkbox"
+              />
+              <div class="task-card-info">
+                <span class="task-card-title" :class="{ 'is-completed': element.completed }">
+                  {{ element.title }}
+                </span>
+                <div class="task-card-meta">
+                  <el-icon size="12"><Calendar /></el-icon>
+                  <span :class="isOverdue(element) ? 'overdue-date' : ''">
+                    {{ formatDate(element.dueDate) }}
+                  </span>
+                  <el-tag type="danger" size="small" v-if="isOverdue(element)">逾期</el-tag>
+                </div>
+              </div>
+              <span :class="['priority-tag', `priority-${element.priority}`]">
+                {{ PRIORITY_LABELS[element.priority] }}
+              </span>
+              <div class="task-actions" v-show="hoveredTaskId === element.id">
+                <el-button link size="small" @click="goToDetail(element.id)" title="详情">
+                  <el-icon size="16"><InfoFilled /></el-icon>
+                </el-button>
+                <el-button link size="small" @click="openEditDialog(element)" title="编辑">
+                  <el-icon size="16"><Edit /></el-icon>
+                </el-button>
+                <el-button link size="small" type="danger" @click="deleteTask(element.id, element.title)" title="删除">
+                  <el-icon size="16"><Delete /></el-icon>
+                </el-button>
               </div>
             </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="12" :sm="12" :md="8" :lg="5" :xl="5">
-          <el-card shadow="hover" class="stat-card">
-            <div class="stat-content">
-              <div class="stat-icon">✅</div>
-              <div class="stat-info">
-                <div class="stat-label">已完成</div>
-                <div class="stat-value">{{ taskStats.completed }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="12" :sm="12" :md="8" :lg="5" :xl="5">
-          <el-card shadow="hover" class="stat-card">
-            <div class="stat-content">
-              <div class="stat-icon">⏳</div>
-              <div class="stat-info">
-                <div class="stat-label">未完成</div>
-                <div class="stat-value">{{ taskStats.pending }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="12" :sm="12" :md="8" :lg="5" :xl="5">
-          <el-card shadow="hover" class="stat-card">
-            <div class="stat-content">
-              <div class="stat-icon">📅</div>
-              <div class="stat-info">
-                <div class="stat-label">今日到期</div>
-                <div class="stat-value">{{ taskStats.todayDue }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="12" :sm="12" :md="8" :lg="4" :xl="4">
-          <el-card shadow="hover" class="stat-card">
-            <div class="stat-content">
-              <div class="stat-icon">🔥</div>
-              <div class="stat-info">
-                <div class="stat-label">高优先级</div>
-                <div class="stat-value">{{ taskStats.highPriority }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
-    </el-card>
-
-    <div class="filter-card">
-      <el-row :gutter="20" style="margin-bottom: 16px; margin-top: 16px;" align="middle">
-        <el-col :xs="24" :sm="24" :md="24" :lg="10" :xl="10">
-          <el-input v-model="searchKeyword" placeholder="搜索任务标题..." :prefix-icon="Search" class="search-input" style="width: 100%;" />
-        </el-col>
-        <el-col :xs="12" :sm="12" :md="6" :lg="7" :xl="7">
-          <div class="filter-item" style="width: 100%;">
-            <el-icon><Filter /></el-icon>
-            <span>状态过滤：</span>
-            <el-select v-model="filterStatus" size="small" style="width: calc(100% - 80px);">
-              <el-option value="all" label="全部" />
-              <el-option value="completed" label="已完成" />
-              <el-option value="pending" label="未完成" />
-              <el-option value="overdue" label="逾期" />
-            </el-select>
-          </div>
-        </el-col>
-        <el-col :xs="12" :sm="12" :md="6" :lg="7" :xl="7">
-          <div class="filter-item" style="width: 100%;">
-            <el-icon><Sort /></el-icon>
-            <span>排序方式：</span>
-            <el-select v-model="sortMode" size="small" style="width: calc(100% - 80px);" @change="handleSortModeChange">
-              <el-option value="dueDate" label="截止日期" />
-              <el-option value="priority" label="优先级" />
-              <el-option value="custom" label="自定义顺序" />
-            </el-select>
-          </div>
-        </el-col>
-      </el-row>
-    </div>
-
-    <div v-if="tasks.length === 0" class="empty-state">
-      <div class="empty-content">
-        <el-empty description="暂无任务，点击添加">
-          <template #description>
-            <span>暂无任务，点击添加</span>
           </template>
-          <el-button type="primary" @click="$refs.addTaskForm.scrollIntoView({ behavior: 'smooth' })" style="margin-top: 20px;">添加任务</el-button>
+        </draggable>
+      </div>
+      <div v-else class="empty-section">
+        <el-empty description="暂无未完成任务" :image-size="60">
+          <template #description>
+            <span v-if="taskStore.totalCount === 0">还没有任务，添加第一个任务吧！</span>
+            <span v-else>暂无未完成任务，去添加一个吧～</span>
+          </template>
+          <template #default>
+            <el-button type="primary" @click="openAddDialog">添加第一个任务</el-button>
+          </template>
         </el-empty>
       </div>
     </div>
-    
-    <!-- 未完成任务区域（可拖拽） -->
-    <div v-if="uncompletedTasks.length > 0" class="tasks-section">
-      <h3 class="section-title">未完成任务 ({{ uncompletedTasks.length }})</h3>
-      <draggable
-        v-model="uncompletedTasks"
-        item-key="id"
-        @end="handleDragEnd"
-        handle=".drag-handle"
-        tag="div"
-        class="tasks-container"
-      >
-        <template #item="{ element: task }">
-          <div :key="task.id" class="task-card">
-            <div class="drag-handle" style="cursor: move; padding: 0 10px; display: inline-block; margin-right: 10px;">
-              ☰
-            </div>
-            <div v-if="editingTask === task.id" class="task-edit-form">
-              <h3>编辑任务</h3>
-              <el-form label-width="80px" size="default">
-                <el-row :gutter="20">
-                  <el-col :xs="24" :sm="12" :md="6">
-                    <el-form-item label="任务标题">
-                      <el-input v-model="editForm.title" required />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :xs="24" :sm="12" :md="6">
-                    <el-form-item label="优先级">
-                      <el-select v-model="editForm.priority">
-                        <el-option value="high" label="高" />
-                        <el-option value="medium" label="中" />
-                        <el-option value="low" label="低" />
-                      </el-select>
-                    </el-form-item>
-                  </el-col>
-                  <el-col :xs="24" :sm="12" :md="6">
-                    <el-form-item label="截止日期">
-                      <el-date-picker v-model="editForm.dueDate" type="date" placeholder="选择日期" style="width: 100%;" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :xs="24" :sm="12" :md="6">
-                    <el-form-item label="完成状态" style="margin-bottom: 0;">
-                      <el-checkbox v-model="editForm.completed" label="已完成" style="margin-top: 24px;" />
-                    </el-form-item>
-                  </el-col>
-                </el-row>
-                <el-row style="margin-top: 20px;">
-                  <el-col :span="24" style="text-align: right;">
-                    <el-button type="primary" @click="saveEdit" :icon="Edit">保存</el-button>
-                    <el-button @click="cancelEdit" style="margin-left: 10px;">取消</el-button>
-                  </el-col>
-                </el-row>
-              </el-form>
-            </div>
 
-            <div v-else class="task-content" :class="{ completed: task.completed }">
-              <div class="task-header">
-                <h3>{{ task.title }}</h3>
-                <div class="task-actions">
-                  <el-tag v-if="isTaskOverdue(task)" type="danger" size="small" effect="dark" style="margin-right: 10px;">已逾期</el-tag>
-                  <el-button type="primary" size="small" @click="startEdit(task)" :icon="Edit">编辑</el-button>
-                  <el-button type="danger" size="small" @click="deleteTask(task.id)" :icon="Delete">删除</el-button>
-                </div>
-              </div>
-
-              <div class="task-body">
-                <div class="task-meta">
-                  <span class="task-due-date">
-                    <span class="date-icon">📅</span>
-                    {{ formatDate(task.dueDate) }}
-                  </span>
-                  <span class="task-priority" :class="task.priority">
-                    <span class="priority-icon">{{ getPriorityInfo(task.priority).icon }}</span>
-                    {{ getPriorityInfo(task.priority).label }}
-                  </span>
-                  <div class="task-completed">
-                    <el-checkbox v-model="task.completed" @change="updateStatus(task.id, task.completed)" label="已完成" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
-      </draggable>
-    </div>
-    
-    <!-- 已完成任务区域（不可拖拽） -->
-    <div v-if="completedTasks.length > 0" class="tasks-section completed-section">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h3 class="section-title">已完成任务 ({{ completedTasks.length }})</h3>
-        <div style="display: flex; gap: 10px;">
-          <el-button type="primary" plain size="small" @click="selectAllCompletedTasks(!isAllSelected)">
-            {{ isAllSelected ? '取消全选' : '全选' }}
+    <!-- Completed Tasks -->
+    <div class="section-block completed-section" v-if="filterStatus !== FILTER_STATUS.INCOMPLETE && filterStatus !== FILTER_STATUS.OVERDUE">
+      <div class="section-label completed-label">
+        <div class="completed-label-left">
+          <el-checkbox
+            v-if="completedTasks.length > 0"
+            v-model="allSelectedForPage"
+            class="select-all-check"
+          >
+            全选
+          </el-checkbox>
+          <span>已完成任务 ({{ completedTasks.length }})</span>
+        </div>
+        <div class="completed-label-right">
+          <el-button
+            v-if="selectedIds.length > 0"
+            type="danger"
+            size="small"
+            @click="batchDelete"
+            plain
+          >
+            <el-icon><Delete /></el-icon>
+            删除选中 ({{ selectedIds.length }})
           </el-button>
-          <el-button type="danger" plain size="small" @click="deleteSelectedTasks" :disabled="selectedCompletedTasks.length === 0">
-            删除选中 ({{ selectedCompletedTasks.length }})
+          <el-button
+            v-if="completedTasks.length > 0"
+            type="danger"
+            size="small"
+            @click="clearCompleted"
+            plain
+          >
+            <el-icon><DeleteFilled /></el-icon>
+            清除全部已完成
           </el-button>
         </div>
       </div>
-      <div class="tasks-container">
-        <div 
-          v-for="task in completedTasks" 
-          :key="task.id" 
-          :class="['task-card', { 'task-card-selected': selectedCompletedTasks.includes(task.id) }]" 
-          @click="toggleSelectTask(task.id)"
+
+      <div v-if="completedTasks.length > 0" class="completed-list">
+        <div
+          v-for="task in completedTasks"
+          :key="task.id"
+          class="task-card completed-card"
+          @mouseenter="hoveredTaskId = task.id"
+          @mouseleave="hoveredTaskId = null"
         >
-          <el-checkbox 
-            :model-value="selectedCompletedTasks.includes(task.id)" 
-            @click.stop 
-            @change="toggleSelectTask(task.id)" 
-            style="margin-right: 10px;"
+          <el-checkbox
+            :value="task.id"
+            v-model="selectedIds"
+            class="task-checkbox select-checkbox"
           />
-          <div class="task-content completed">
-            <div class="task-header">
-              <h3>{{ task.title }}</h3>
-              <div class="task-actions">
-                <el-tooltip content="删除任务" placement="top">
-                  <el-button 
-                    type="danger" 
-                    size="small" 
-                    circle 
-                    @click.stop="deleteTaskWithConfirm(task.id)" 
-                    class="hover-delete-btn"
-                    :icon="Delete"
-                  />
-                </el-tooltip>
-              </div>
+          <el-checkbox
+            :model-value="task.completed"
+            @change="toggleCompleteFromCompleted(task)"
+            class="task-checkbox"
+          />
+          <div class="task-card-info">
+            <span class="task-card-title is-completed">{{ task.title }}</span>
+            <div class="task-card-meta">
+              <el-icon size="12"><Calendar /></el-icon>
+              <span>{{ formatDate(task.dueDate) }}</span>
             </div>
-
-            <div class="task-body">
-              <div class="task-meta">
-                <span class="task-due-date">
-                  <span class="date-icon">📅</span>
-                  {{ formatDate(task.dueDate) }}
-                </span>
-                <span class="task-priority" :class="task.priority">
-                  <span class="priority-icon">{{ getPriorityInfo(task.priority).icon }}</span>
-                  {{ getPriorityInfo(task.priority).label }}
-                </span>
-                <div class="task-completed">
-                  <el-tooltip content="已完成任务不可修改" placement="top">
-                    <el-checkbox v-model="task.completed" @change="updateStatus(task.id, task.completed)" label="已完成" :disabled="true" />
-                  </el-tooltip>
-                </div>
-              </div>
-            </div>
+          </div>
+          <span :class="['priority-tag', `priority-${task.priority}`]">
+            {{ PRIORITY_LABELS[task.priority] }}
+          </span>
+          <div class="task-actions completed-actions" v-show="hoveredTaskId === task.id">
+            <el-button link size="small" @click="goToDetail(task.id)" title="详情">
+              <el-icon size="16"><InfoFilled /></el-icon>
+            </el-button>
+            <el-button link size="small" @click="openEditDialog(task)" title="编辑">
+              <el-icon size="16"><Edit /></el-icon>
+            </el-button>
+            <el-button link size="small" type="danger" @click="deleteTask(task.id, task.title)" title="删除" class="delete-btn">
+              <el-icon size="16"><Delete /></el-icon>
+            </el-button>
           </div>
         </div>
       </div>
+      <div v-else class="empty-section">
+        <el-empty description="暂无已完成任务" :image-size="60" />
+      </div>
     </div>
-    
-    <div v-if="uncompletedTasks.length === 0 && completedTasks.length === 0 && tasks.length > 0" class="empty-state">
-      <p>没有符合条件的任务</p>
-    </div>
+
+    <!-- Add/Edit Dialog -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="editingTask ? '编辑任务' : '添加新任务'"
+      width="480px"
+      :close-on-click-modal="false"
+      @close="closeDialog"
+    >
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="formRules"
+        label-width="80px"
+        label-position="left"
+      >
+        <el-form-item label="标题" prop="title">
+          <el-input
+            v-model="form.title"
+            placeholder="请输入任务标题"
+            maxlength="100"
+            show-word-limit
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="截止日期" prop="dueDate">
+          <el-date-picker
+            v-model="form.dueDate"
+            type="date"
+            placeholder="选择截止日期"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="优先级" prop="priority">
+          <el-select v-model="form.priority" style="width: 100%">
+            <el-option label="高优先级" value="high">
+              <span class="priority-option">
+                <span class="dot dot-high"></span> 高优先级
+              </span>
+            </el-option>
+            <el-option label="中优先级" value="medium">
+              <span class="priority-option">
+                <span class="dot dot-medium"></span> 中优先级
+              </span>
+            </el-option>
+            <el-option label="低优先级" value="low">
+              <span class="priority-option">
+                <span class="dot dot-low"></span> 低优先级
+              </span>
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态" v-if="editingTask">
+          <el-switch
+            v-model="form.completed"
+            active-text="已完成"
+            inactive-text="未完成"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="closeDialog">取消</el-button>
+          <el-button type="primary" @click="submitForm">
+            {{ editingTask ? '保存修改' : '添加任务' }}
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped>
-.task-list {
-  padding: 40px 20px;
-  max-width: 1200px;
+.task-list-page {
+  padding: 24px;
+  max-width: 1000px;
   margin: 0 auto;
 }
 
-.task-list-header {
-  text-align: center;
-  margin-bottom: 60px;
-}
-
-.task-list-header h1 {
-  font-size: 36px;
-  margin-bottom: 20px;
-  color: var(--text-primary);
-  transition: color 0.3s;
-}
-
-.task-list-header p {
-  font-size: 18px;
-  color: var(--text-secondary);
-  max-width: 800px;
-  margin: 0 auto;
-  transition: color 0.3s;
-}
-
-.add-task-form {
-  background-color: var(--bg-card);
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
-  padding: 20px;
-  margin-bottom: 30px;
-  transition: all 0.3s ease;
-  border: 1px solid var(--border-color);
-}
-
-.add-task-form:hover {
-  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.12);
-  transform: translateY(-5px);
-}
-
-/* 表单动画效果 */
-.form-animation {
-  animation: formAppear 0.6s ease-out forwards;
-}
-
-@keyframes formAppear {
-  0% {
-    opacity: 0;
-    transform: translateY(20px);
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-    box-shadow: 0 8px 24px 0 rgba(0, 0, 0, 0.15);
-  }
-}
-
-.dashboard-card {
-  margin-bottom: 24px;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.stat-card {
-  transition: all 0.3s ease;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.stat-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-}
-
-.stat-icon {
-  font-size: 28px;
-  flex-shrink: 0;
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-  transition: color 0.3s;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: bold;
-  color: var(--button-primary);
-  transition: color 0.3s;
-}
-
-.filter-card {
-  background-color: #f9fafc;
-  border-radius: 16px;
-  padding: 16px 20px;
+.header-container {
   margin-bottom: 24px;
 }
 
-.filter-item {
+.page-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.header-left {
+  display: flex;
+  align-items: baseline;
   gap: 10px;
+}
+
+.header-left h2 {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.task-count {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.filters-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.filters-row > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.filter-item span {
-  font-weight: 500;
-  color: #606266;
-  font-size: 14px;
-  transition: color 0.3s;
-  white-space: nowrap;
+.sort-select {
+  min-width: 120px;
 }
 
-.filter-item .el-select {
+.search-input {
+  width: 240px;
+}
+
+.section-block {
+  margin-bottom: 24px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.incomplete-section {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  padding: 16px;
+}
+
+.completed-section {
+  background: #f8f9fa;
+  border: 1px solid var(--color-border);
+  padding: 16px;
+}
+
+.section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0 4px 8px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.drag-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.completed-label {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.completed-label-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.completed-label-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.task-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: var(--color-primary-light);
+  background: #f8f9fa;
+}
+
+.task-card.overdue {
+  border-left: 3px solid var(--color-error);
+  background: var(--color-error-light);
+}
+
+.task-card.completed-card {
+  opacity: 0.75;
+}
+
+.task-card.completed-card:hover {
+  opacity: 1;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--color-text-muted);
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color var(--transition-fast);
+}
+
+.drag-handle:hover { color: var(--color-text-secondary); }
+.drag-handle:active { cursor: grabbing; }
+
+.task-checkbox {
+  flex-shrink: 0;
+}
+
+.select-checkbox {
+  width: 20px;
+  margin-right: 4px;
+}
+
+.task-card-info {
   flex: 1;
   min-width: 0;
 }
 
-.dark .filter-card {
-  background-color: var(--bg-secondary);
+.task-card-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.dark .filter-item span {
-  color: var(--text-secondary);
+.task-card-title.is-completed {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
 }
 
-.dark .el-select .el-input__wrapper {
-  background-color: var(--bg-primary);
-  border-color: var(--border-color);
-}
-
-.dark .el-select .el-input__inner {
-  color: var(--text-primary);
-}
-
-.search-input {
-  width: 100%;
-  border-radius: 30px;
-  padding: 12px 16px;
-  font-size: 16px;
-  background-color: #fff;
-  border: 1px solid #e4e7ed;
-  transition: all 0.3s ease;
-}
-
-.search-input:hover {
-  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.1);
-}
-
-.search-input:focus {
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
-  outline: none;
-}
-
-.search-input :deep(.el-input__prefix) {
-  color: #909399;
-}
-
-.search-input :deep(.el-input__placeholder) {
-  color: #c0c4cc;
-}
-
-.tasks-container {
+.task-card-meta {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
 }
 
-.task-card {
-  background-color: var(--bg-card);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 20px;
-  transition: all 0.3s ease;
-  border: 1px solid var(--border-color);
-  width: 100%;
-  color: var(--text-primary);
-}
-
-.task-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  border-color: var(--button-primary);
-}
-
-.task-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
-  margin-right: 5px;
-}
-
-.task-header h3 {
-  font-size: 16px;
-  font-weight: bold;
-  margin: 0;
-  color: var(--text-primary);
-  flex: 1;
-  transition: color 0.3s;
+.overdue-date {
+  color: var(--color-error);
+  font-weight: 500;
 }
 
 .task-actions {
   display: flex;
-  gap: 10px;
-}
-
-.task-body {
-  margin-top: 15px;
-}
-
-.task-description {
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  margin-bottom: 15px;
-  transition: color 0.3s;
-}
-
-.task-meta {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
-  flex-wrap: wrap;
-  gap: 10px;
+  gap: 4px;
 }
 
-.task-completed {
-  display: flex;
-  align-items: center;
-  transition: all 0.3s ease;
+
+
+.empty-section {
+  padding: 32px 0;
+  text-align: center;
 }
 
-.task-priority {
-  padding: 6px 14px;
-  border-radius: 16px;
+.dragging-ghost {
+  opacity: 0.4;
+  background: var(--color-primary-light) !important;
+  border: 2px dashed var(--color-primary) !important;
+}
+
+
+
+.priority-tag {
+  padding: 2px 8px;
+  border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
+  color: white;
+}
+
+.priority-high {
+  background: #f56c6c;
+}
+
+.priority-medium {
+  background: #e6a23c;
+}
+
+.priority-low {
+  background: #67c23a;
+}
+
+.priority-option {
   display: flex;
   align-items: center;
   gap: 6px;
-  transition: all 0.3s ease;
-  border: 1px solid;
 }
 
-.task-priority.high {
-  background-color: #fef0f0;
-  color: #f56c6c;
-  border-color: #fbc4c4;
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
 }
+.dot-high { background: #ef4444; }
+.dot-medium { background: #f59e0b; }
+.dot-low { background: #10b981; }
 
-.task-priority.medium {
-  background-color: #fdf6ec;
-  color: #e6a23c;
-  border-color: #fde68a;
-}
-
-.task-priority.low {
-  background-color: #f0f9eb;
-  color: #67c23a;
-  border-color: #d9f7be;
-}
-
-.task-priority:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.1);
-}
-
-.priority-icon {
-  font-size: 14px;
-}
-
-.task-content.completed {
-  opacity: 0.7;
-}
-
-.task-content.completed h3 {
-  text-decoration: line-through;
-  color: #909399;
-}
-
-.task-due-date {
-  font-size: 12px;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background-color: var(--bg-secondary);
-  padding: 6px 14px;
-  border-radius: 16px;
-  border: 1px solid var(--border-color);
-  transition: all 0.3s ease;
-}
-
-.task-due-date:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.1);
-  border-color: #1976d2;
-}
-
-.date-icon {
-  font-size: 14px;
-}
-
-.task-edit-form {
-  background-color: var(--bg-secondary);
-  border-radius: 6px;
-  padding: 20px;
-  transition: background-color 0.3s;
-}
-
-.task-edit-form h3 {
-  font-size: 16px;
-  margin-bottom: 15px;
-  color: var(--text-primary);
-  transition: color 0.3s;
-}
-
-.empty-state {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 60px 20px;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
-  color: #909399;
-  font-size: 18px;
-}
-
-.tasks-section {
-  margin-bottom: 30px;
-}
-
-.section-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 16px;
-  padding-left: 10px;
-  border-left: 4px solid var(--button-primary);
-  transition: color 0.3s, border-color 0.3s;
-}
-
-.completed-section .section-title {
-  color: #909399;
-  border-left-color: #67c23a;
-}
-
-.disabled-drag {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.disabled-drag:hover {
-  opacity: 1;
-}
-
-/* 悬停显示删除按钮 */
-.task-card .task-actions .hover-delete-btn {
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.task-card:hover .task-actions .hover-delete-btn {
-  opacity: 1;
-}
-
-/* 选中卡片样式 */
-.task-card-selected {
-  background-color: var(--el-color-primary-light-9, #ecf5ff);
-  border-left: 3px solid var(--el-color-primary, #409eff);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  transition: all 0.2s ease;
-}
-
-/* 确保卡片布局稳定，避免边框变化导致抖动 */
-.task-card {
-  border-left: 3px solid transparent;
-  transition: all 0.2s ease;
-}
-
-/* 鼠标悬停效果 */
-.task-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s ease;
-}
-
-.add-task-form h2 {
-  font-size: 20px;
-  margin-bottom: 20px;
-  color: var(--text-primary);
-  position: relative;
-  padding-bottom: 10px;
-  transition: color 0.3s;
-}
-
-.add-task-form h2::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 60px;
-  height: 3px;
-  background-color: #1976d2;
-}
-
-.form-row {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 16px;
-  align-items: flex-end;
-}
-
-.form-item {
-  flex: 1;
-}
-
-.form-actions {
+.dialog-footer {
   display: flex;
   justify-content: flex-end;
-  align-items: center;
-  margin-top: 16px;
-}
-
-.mobile-form-actions {
-  display: none;
-}
-
-.form-item .el-form-item {
-  margin-bottom: 0;
-  display: flex;
-  align-items: center;
-}
-
-.form-item .el-form-item__label {
-  min-width: 80px;
-  text-align: left;
-}
-
-.form-item .el-form-item__content {
-  flex: 1;
-}
-
-.form-item .el-input,
-.form-item .el-select,
-.form-item .el-date-picker {
-  width: 100%;
+  gap: 8px;
 }
 
 @media (max-width: 768px) {
-  .task-list {
-    padding: 20px 10px;
-  }
-
-  .task-list-header h1 {
-    font-size: 28px;
-  }
-
-  .dashboard-card {
-    margin-bottom: 20px;
-  }
-
-  .stat-content {
-    padding: 12px;
-    gap: 12px;
-  }
-
-  .stat-icon {
-    font-size: 24px;
-  }
-
-  .stat-value {
-    font-size: 20px;
-  }
-
-  .add-task-form {
-    background: white;
+  .task-list-page {
     padding: 16px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 
-  .form-row {
+  .filters-row {
     flex-direction: column;
-    gap: 16px;
+    align-items: stretch;
   }
 
-  .form-item {
-    width: 100%;
-  }
-
-  .form-item .el-form-item {
+  .filters-row > div {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-
-  .form-item .el-form-item__label {
-    font-size: 16px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 6px;
-  }
-
-  .form-item .el-form-item__content {
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-
-  .form-item .el-input,
-  .form-item .el-select,
-  .form-item .el-date-picker {
-    width: 100% !important;
-  }
-
-  .form-item .el-input__wrapper,
-  .form-item .el-select .el-input__wrapper,
-  .form-item .el-date-picker__wrapper {
-    height: 44px !important;
-    width: 100% !important;
-  }
-
-  .form-item .el-select .el-input {
-    width: 100% !important;
-  }
-
-  .form-item .el-select .el-input__wrapper {
-    min-width: 100% !important;
-  }
-
-  .form-item .el-select {
-    min-width: 100% !important;
-  }
-
-  .form-row .form-item.completed-item,
-  .form-actions {
-    display: none;
-  }
-
-  .mobile-form-actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 16px;
-  }
-
-  .completed-checkbox {
-    display: flex;
-    align-items: center;
-  }
-
-  .add-button {
-    flex: 0 0 auto;
-  }
-
-  @media (max-width: 320px) {
-    .mobile-form-actions {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .add-button {
-      width: 100%;
-    }
-
-    .add-button .el-button {
-      width: 100%;
-    }
-  }
-
-  .filter-card {
-    padding: 12px 16px;
-  }
-
-  .filter-item {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .filter-item span {
-    font-size: 12px;
-  }
-
-  .filter-item .el-select {
-    flex: 1;
-  }
-
-  .tasks-container {
-    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .search-input {
     width: 100%;
+  }
+
+  .incomplete-section,
+  .completed-section {
+    padding: 12px;
   }
 }
 </style>

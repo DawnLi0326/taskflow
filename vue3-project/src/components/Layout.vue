@@ -1,200 +1,394 @@
 <script setup>
-//导入必要的工具 ：
-//从Vue中导入了 ref 和 watch 两个函数， ref 用于创建响应式变量， watch 用于监听数据变化
-import { ref, watch } from 'vue'
-// 从Vue Router中导入了 useRoute 和 useRouter ，用于处理页面路由
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-// 导入主题 store
-import { useThemeStore } from '../stores/theme'
-//route 用于获取当前页面的路由信息
-const route = useRoute()
-//router 用于控制页面跳转
-const router = useRouter()
-// 主题 store
-const themeStore = useThemeStore()
-//activeMenu 是一个响应式变量，记录当前选中的菜单项，页面加载后默认选中"任务列表"
-const activeMenu = ref('tasks') 
+import { useSettingsStore } from '../stores/settings'
+import { useTaskStore } from '../stores/task'
 
-// 定义菜单数据 ：
-// 创建了一个包含三个菜单项的数组，分别是"首页"、"任务列表"和"数据统计"
-// 每个菜单项都有一个唯一的id、显示名称和图标
+const route = useRoute()
+const router = useRouter()
+const settingsStore = useSettingsStore()
+const taskStore = useTaskStore()
+
+const collapsed = ref(false)
+const mobileMenuOpen = ref(false)
+
 const menuItems = [
-  { id: 'dashboard', name: '首页', icon: '🏠' },
-  { id: 'tasks', name: '任务列表', icon: '📋' },
-  { id: 'statistics', name: '数据统计', icon: '📊' },
-  { id: 'settings', name: '设置', icon: '⚙️' }
+  { name: 'Dashboard', path: '/dashboard', icon: 'Odometer', label: '仪表盘' },
+  { name: 'TaskList', path: '/tasks', icon: 'List', label: '任务列表' },
+  { name: 'Statistics', path: '/statistics', icon: 'TrendCharts', label: '数据统计' },
+  { name: 'Settings', path: '/settings', icon: 'Setting', label: '设置' },
 ]
 
-// 监听路由变化watch()
-//路由变化 ： route.path 的值会改变（比如从 /tasks 变成 /dashboard ）
-//触发监听 ： watch 监听到 route.path 变化，执行回调函数newPath。
-//这里监听用了getter函数，返回 route.path 的值
-watch(() => route.path, (newPath) => { 
-  //参数传递 ：回调函数的 newPath 参数会收到新的路径值（比如 /dashboard ）。
-  //处理路径 ： newPath.replace('/', '') 把路径开头的斜杠去掉，得到 dashboard 。
-  const path = newPath.replace('/', '')
-  // 检查路径 ：判断处理后的路径是否在菜单 id 数组中。
-  const menuIds = ['dashboard', 'tasks', 'statistics', 'settings']
-  if (menuIds.includes(path)) {
-    //更新状态 ：如果在数组中，就把 activeMenu.value 设置为当前路径，这样对应的菜单项就会高亮。
-    activeMenu.value = path
-  }
-})
+const activeRoute = computed(() => route.path)
+const overdueCount = computed(() => taskStore.overdueTasks.length)
 
-// 处理菜单点击
-// 这是一个 箭头函数 ，定义了一个名为 handleMenuSelect 的函数 (key) 是函数的参数，代表被点击的菜单项的 id （比如 'tasks' 或 'dashboard' ）
-const handleMenuSelect = (key) => {
-  //把 activeMenu 的值设置为当前点击的菜单项 id ，这样对应的菜单项就会被高亮显示（通过模板中的
-  activeMenu.value = key
-  //router.push() 方法跳转到对应的页面 比如 key 是 'tasks' ，那么 `/${key}` 就会变成 '/tasks'
-  router.push(`/${key}`)
+function navigate(path) {
+  router.push(path)
+  mobileMenuOpen.value = false
 }
 
-// 切换主题
-const toggleTheme = () => {
-  themeStore.toggleTheme()
+function toggleSidebar() {
+  collapsed.value = !collapsed.value
 }
 </script>
 
 <template>
-  <div class="layout-container">
-    <!-- 顶部导航栏 -->
-    <header class="header">
-      <h1>任务仪表板</h1>
-      <!-- 主题切换按钮 -->
-      <!-- 主题切换按钮 -->
-    <button class="theme-toggle" @click="toggleTheme" aria-label="切换主题">
-    {{ themeStore.isDark ? '🌙' : '🌞' }}
-     </button>
-    </header>
-    
-    <div class="content-container">
-      <!-- 左侧菜单栏 -->
-      <aside class="sidebar">
-        <nav class="menu">
-          <ul>
-            <li 
-             v-for="item in menuItems"
-             :key="item.id"
-             :class="{active:activeMenu.value===item.id}"
-             @click="handleMenuSelect(item.id)"
-            >
-              <span class="menu-icon">{{ item.icon }}</span>
-              <span class="menu-text">{{ item.name }}</span>
-            </li>
-          </ul>
-        </nav>
-      </aside>
-      
-      <!-- 右侧内容区 -->
+  <div class="layout">
+    <!-- Mobile overlay -->
+    <div
+      v-if="mobileMenuOpen"
+      class="mobile-overlay"
+      @click="mobileMenuOpen = false"
+    />
+
+    <!-- Sidebar -->
+    <aside
+      class="sidebar"
+      :class="{ collapsed, 'mobile-open': mobileMenuOpen }"
+    >
+      <!-- Logo -->
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">
+            <el-icon size="20" color="#fff"><Checked /></el-icon>
+          </div>
+          <Transition name="fade">
+            <span v-if="!collapsed" class="logo-text">任务中心</span>
+          </Transition>
+        </div>
+        <button class="collapse-btn" @click="toggleSidebar" title="折叠侧边栏">
+          <el-icon size="16">
+            <component :is="collapsed ? 'Expand' : 'Fold'" />
+          </el-icon>
+        </button>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="sidebar-nav">
+        <button
+          v-for="item in menuItems"
+          :key="item.path"
+          class="nav-item"
+          :class="{ active: activeRoute.startsWith(item.path) }"
+          @click="navigate(item.path)"
+          :title="collapsed ? item.label : ''"
+        >
+          <div class="nav-icon">
+            <el-icon size="18"><component :is="item.icon" /></el-icon>
+            <span
+              v-if="item.name === 'TaskList' && overdueCount > 0"
+              class="nav-badge"
+            >{{ overdueCount }}</span>
+          </div>
+          <Transition name="fade">
+            <span v-if="!collapsed" class="nav-label">{{ item.label }}</span>
+          </Transition>
+        </button>
+      </nav>
+
+      <!-- Theme toggle at bottom -->
+      <div class="sidebar-footer">
+        <button
+          class="theme-toggle"
+          :title="settingsStore.darkMode ? '切换浅色' : '切换深色'"
+          @click="settingsStore.toggleDarkMode()"
+        >
+          <el-icon size="16">
+            <component :is="settingsStore.darkMode ? 'Sunny' : 'Moon'" />
+          </el-icon>
+          <Transition name="fade">
+            <span v-if="!collapsed">{{ settingsStore.darkMode ? '浅色模式' : '深色模式' }}</span>
+          </Transition>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <div class="main-wrapper">
+      <!-- Mobile topbar -->
+      <header class="mobile-topbar">
+        <button class="hamburger" @click="mobileMenuOpen = true">
+          <el-icon size="20"><Menu /></el-icon>
+        </button>
+        <span class="mobile-title">任务中心</span>
+        <button class="theme-btn-mobile" @click="settingsStore.toggleDarkMode()">
+          <el-icon size="18">
+            <component :is="settingsStore.darkMode ? 'Sunny' : 'Moon'" />
+          </el-icon>
+        </button>
+      </header>
+
       <main class="main-content">
-        <router-view />
+        <RouterView />
       </main>
     </div>
   </div>
 </template>
 
 <style scoped>
-.layout-container {
-  height: 100vh;
-  width: 100%;
+.layout {
   display: flex;
-  flex-direction: column;
+  height: 100vh;
   overflow: hidden;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  transition: background-color 0.3s, color 0.3s;
+  background-color: var(--color-bg);
 }
 
-.header {
-  height: 60px;
-  background-color: var(--header-bg);
-  color: var(--header-text);
+/* ===== Sidebar ===== */
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background-color: var(--sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  transition: width var(--transition-base), min-width var(--transition-base);
+  overflow: hidden;
+  position: relative;
+  z-index: 100;
+}
+
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed-width);
+  min-width: var(--sidebar-collapsed-width);
+}
+
+.sidebar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
-  transition: background-color 0.3s, color 0.3s;
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
 }
 
-.header h1 {
-  margin: 0;
-  font-size: 18px;
-}
-
-/* 主题切换按钮 */
-.theme-toggle {
-  background: none;
-  border: none;
-  color: var(--header-text);
-  font-size: 20px;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 50%;
-  transition: background-color 0.3s;
-}
-
-.theme-toggle:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.content-container {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-.sidebar {
-  width: 160px;
-  background-color: var(--bg-primary);
-  border-right: 1px solid var(--border-color);
-  overflow-y: auto;
-  transition: background-color 0.3s, border-color 0.3s;
-}
-
-.menu ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.menu li {
-  height: 50px;
-  line-height: 50px;
-  padding: 0 16px;
-  cursor: pointer;
-  transition: all 0.3s;
+.logo {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--text-primary);
+  overflow: hidden;
 }
 
-.menu li:hover {
-  background-color: var(--menu-hover-bg);
+.logo-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--gradient-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.menu li.active {
-  background-color: var(--menu-active-bg);
-  color: var(--menu-active-text);
-  font-weight: bold;
-}
-
-.menu-icon {
+.logo-text {
   font-size: 16px;
-  width: 20px;
-  text-align: center;
+  font-weight: 700;
+  color: var(--sidebar-text);
+  white-space: nowrap;
 }
 
-.menu-text {
+.collapse-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--sidebar-text-muted);
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.collapse-btn:hover {
+  color: var(--sidebar-text);
+  background: var(--sidebar-hover-bg);
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: var(--sidebar-text-muted);
   font-size: 14px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-family);
+}
+
+.nav-item:hover {
+  background: var(--sidebar-hover-bg);
+  color: var(--sidebar-text);
+}
+
+.nav-item.active {
+  background: var(--sidebar-active-bg);
+  color: var(--sidebar-active-text);
+}
+
+.nav-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.nav-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  background: var(--color-error);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 10px;
+  min-width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-label {
+  white-space: nowrap;
+}
+
+.sidebar-footer {
+  padding: 12px 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: var(--sidebar-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  width: 100%;
+  font-family: var(--font-family);
+}
+
+.theme-toggle:hover {
+  background: var(--sidebar-hover-bg);
+  color: var(--sidebar-text);
+}
+
+/* ===== Main ===== */
+.main-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.mobile-topbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 56px;
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.hamburger, .theme-btn-mobile {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text);
+  padding: 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.mobile-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .main-content {
   flex: 1;
-  padding: 40px;
-  background-color: var(--bg-secondary);
   overflow-y: auto;
-  transition: background-color 0.3s;
+  overflow-x: hidden;
+}
+
+/* ===== Transitions ===== */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity var(--transition-fast);
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+
+/* ===== Mobile overlay ===== */
+.mobile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 99;
+  display: none;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: -240px;
+    top: 0;
+    height: 100vh;
+    transition: left var(--transition-base);
+  }
+
+  .sidebar.mobile-open {
+    left: 0;
+  }
+
+  .sidebar.collapsed {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+  }
+
+  .mobile-overlay {
+    display: block;
+  }
+
+  .mobile-topbar {
+    display: flex;
+  }
+
+  .collapse-btn {
+    display: none;
+  }
 }
 </style>
