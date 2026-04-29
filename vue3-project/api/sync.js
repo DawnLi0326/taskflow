@@ -51,11 +51,15 @@ export default async function handler(req, res) {
     if (req.method === 'PUT') {
       const { tasks } = req.body;
       if (!tasks || !Array.isArray(tasks)) {
+        console.warn('⚠️ 请求体格式错误，缺少 tasks 数组:', req.body);
         return res.status(400).json({ error: '请求体必须包含 tasks 数组' });
       }
 
       console.info('🔄 写入数据到 JSONBin，共', tasks.length, '条任务');
-      const response = await fetch(url, {
+      console.debug('📋 待写入数据:', JSON.stringify(tasks).substring(0, 500) + '...');
+
+      // PUT 请求需要使用 /latest 后缀来更新现有记录
+      const response = await fetch(`${url}/latest`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({ tasks }),

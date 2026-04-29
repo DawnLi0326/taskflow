@@ -116,7 +116,10 @@ export const useTaskStore = defineStore('tasks', () => {
    * 使用 PUT /api/sync 请求
    */
   function syncToCloud() {
-    if (import.meta.env.DEV) return;
+    if (import.meta.env.DEV) {
+      console.info('ℹ️ 开发环境跳过云端同步');
+      return;
+    }
     if (syncDebounceTimer) {
       clearTimeout(syncDebounceTimer)
     }
@@ -124,6 +127,8 @@ export const useTaskStore = defineStore('tasks', () => {
     syncDebounceTimer = setTimeout(async () => {
       try {
         console.info('🔄 正在同步数据到云端...')
+        console.debug('📋 同步数据数量:', tasks.value.length)
+        console.debug('📋 同步数据示例:', JSON.stringify(tasks.value.slice(0, 2)).substring(0, 200) + '...')
 
         const response = await fetch(API_PROXY_URL, {
           method: 'PUT',
@@ -145,6 +150,7 @@ export const useTaskStore = defineStore('tasks', () => {
         console.info('✅ 成功同步数据到云端')
       } catch (err) {
         console.error('❌ 同步数据到云端失败:', err.message)
+        console.error('❌ 错误详情:', err)
       } finally {
         syncDebounceTimer = null
       }
