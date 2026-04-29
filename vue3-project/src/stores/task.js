@@ -116,6 +116,9 @@ export const useTaskStore = defineStore('tasks', () => {
    * 使用 PUT /api/sync 请求
    */
   function syncToCloud() {
+    // 在函数开头添加调用日志，确认函数被调用
+    console.info('📤 syncToCloud 被调用，开发环境:', import.meta.env.DEV)
+
     if (import.meta.env.DEV) {
       console.info('ℹ️ 开发环境跳过云端同步');
       return;
@@ -155,6 +158,12 @@ export const useTaskStore = defineStore('tasks', () => {
         syncDebounceTimer = null
       }
     }, 1000)
+  }
+
+  // 为了兼容性，添加 saveToCloud 作为 syncToCloud 的别名
+  function saveToCloud() {
+    console.info('📤 saveToCloud 被调用，将委托给 syncToCloud')
+    syncToCloud()
   }
 
   // ========== 6.3 初始化云端拉取 ==========
@@ -228,7 +237,7 @@ export const useTaskStore = defineStore('tasks', () => {
     }
     tasks.value.push(newTask)
     persist()
-    syncToCloud()
+    saveToCloud()
   }
 
   function updateTask(id, updates) {
@@ -247,31 +256,31 @@ export const useTaskStore = defineStore('tasks', () => {
 
     tasks.value[idx] = newTask
     persist()
-    syncToCloud()
+    saveToCloud()
   }
 
   function deleteTask(id) {
     tasks.value = tasks.value.filter(t => t.id !== id)
     persist()
-    syncToCloud()
+    saveToCloud()
   }
 
   function deleteTasks(ids) {
     tasks.value = tasks.value.filter(t => !ids.includes(t.id))
     persist()
-    syncToCloud()
+    saveToCloud()
   }
 
   function clearCompleted() {
     tasks.value = tasks.value.filter(t => !t.completed)
     persist()
-    syncToCloud()
+    saveToCloud()
   }
 
   function clearAll() {
     tasks.value = []
     persist()
-    syncToCloud()
+    saveToCloud()
   }
 
   function reorderTasks(newOrder) {
@@ -290,7 +299,7 @@ export const useTaskStore = defineStore('tasks', () => {
     const completedTasks = tasks.value.filter(t => t.completed)
     tasks.value = [...uncompletedOrdered, ...completedTasks]
     persist()
-    syncToCloud()
+    saveToCloud()
   }
 
   function importTasks(imported, mode = 'replace') {
@@ -304,7 +313,7 @@ export const useTaskStore = defineStore('tasks', () => {
       tasks.value.push(...newTasks)
     }
     persist()
-    syncToCloud()
+    saveToCloud()
   }
 
   function getTasksForStats() {
@@ -335,6 +344,7 @@ export const useTaskStore = defineStore('tasks', () => {
     importTasks,
     getTasksForStats,
     fetchFromCloud,
-    syncToCloud
+    syncToCloud,
+    saveToCloud  // 新增：导出 saveToCloud 别名
   }
 })
