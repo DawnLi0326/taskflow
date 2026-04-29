@@ -12,14 +12,8 @@ const STORAGE_KEY = STORAGE_KEYS.TASKS
 // 前端和 API 在同一域名下，始终使用相对路径
 const API_PROXY_URL = '/api/sync'
 
-// 是否启用云端同步（可根据网络情况动态调整）
-const ENABLE_CLOUD_SYNC = true
-
 // 防抖计时器（避免短时间内多次同步）
 let syncDebounceTimer = null
-
-// 网络连接状态（用于判断是否可以连接到云端）
-let cloudAvailable = true
 
 // ========== 4. 工具函数 ==========
 
@@ -84,27 +78,16 @@ export const useTaskStore = defineStore('tasks', () => {
    * 使用 GET /api/sync 请求
    */
   async function fetchFromCloud() {
-    // 如果未启用云端同步或上次连接失败，跳过
-    if (!ENABLE_CLOUD_SYNC || !cloudAvailable) {
-      console.info('ℹ️ 云端同步未启用或连接不可用，跳过拉取')
-      return
-    }
-
     try {
       console.info('🔄 正在从云端拉取数据...')
-
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10秒超时
 
       const response = await fetch(API_PROXY_URL, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
-        },
-        signal: controller.signal
+        }
       })
 
-      clearTimeout(timeoutId)
       console.debug('📡 响应状态:', response.status)
 
       if (!response.ok) {
@@ -117,15 +100,13 @@ export const useTaskStore = defineStore('tasks', () => {
       if (Array.isArray(cloudTasks) && cloudTasks.length > 0) {
         tasks.value = cloudTasks.map(normalizeTask)
         persist()
-        cloudAvailable = true
         console.info('✅ 成功从云端同步数据，共', cloudTasks.length, '条任务')
       } else {
         console.info('ℹ️ 云端数据为空，保持本地数据不变')
       }
     } catch (err) {
-      cloudAvailable = false
       console.error('❌ 从云端拉取数据失败:', err.message)
-      console.warn('⚠️ 将继续使用本地数据，云端同步已暂停')
+      console.warn('⚠️ 将继续使用本地数据')
     }
   }
 
