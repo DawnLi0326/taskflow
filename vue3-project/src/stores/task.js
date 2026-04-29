@@ -78,6 +78,7 @@ export const useTaskStore = defineStore('tasks', () => {
    * 使用 GET /api/sync 请求
    */
   async function fetchFromCloud() {
+    if (import.meta.env.DEV) return;
     try {
       console.info('🔄 正在从云端拉取数据...')
 
@@ -115,6 +116,7 @@ export const useTaskStore = defineStore('tasks', () => {
    * 使用 PUT /api/sync 请求
    */
   function syncToCloud() {
+    if (import.meta.env.DEV) return;
     if (syncDebounceTimer) {
       clearTimeout(syncDebounceTimer)
     }
