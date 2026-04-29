@@ -116,13 +116,13 @@ export const useTaskStore = defineStore('tasks', () => {
    * 使用 PUT /api/sync 请求
    */
   function syncToCloud() {
-    // 在函数开头添加调用日志，确认函数被调用
-    console.info('📤 syncToCloud 被调用，开发环境:', import.meta.env.DEV)
+    console.info('📤 syncToCloud 被调用')
 
     if (import.meta.env.DEV) {
       console.info('ℹ️ 开发环境跳过云端同步');
       return;
     }
+
     if (syncDebounceTimer) {
       clearTimeout(syncDebounceTimer)
     }
@@ -131,7 +131,7 @@ export const useTaskStore = defineStore('tasks', () => {
       try {
         console.info('🔄 正在同步数据到云端...')
         console.debug('📋 同步数据数量:', tasks.value.length)
-        console.debug('📋 同步数据示例:', JSON.stringify(tasks.value.slice(0, 2)).substring(0, 200) + '...')
+        console.debug('📋 同步数据:', JSON.stringify(tasks.value).substring(0, 300))
 
         const response = await fetch(API_PROXY_URL, {
           method: 'PUT',
@@ -160,7 +160,7 @@ export const useTaskStore = defineStore('tasks', () => {
     }, 1000)
   }
 
-  // 为了兼容性，添加 saveToCloud 作为 syncToCloud 的别名
+  // 为了兼容性，提供 saveToCloud 作为 syncToCloud 的别名
   function saveToCloud() {
     console.info('📤 saveToCloud 被调用，将委托给 syncToCloud')
     syncToCloud()
@@ -168,7 +168,6 @@ export const useTaskStore = defineStore('tasks', () => {
 
   // ========== 6.3 初始化云端拉取 ==========
   // 异步拉取云端数据，不阻塞页面渲染
-  // 添加延迟确保组件初始化完成
   setTimeout(() => {
     fetchFromCloud()
   }, 500)
@@ -230,6 +229,7 @@ export const useTaskStore = defineStore('tasks', () => {
   // ========== 6.5 操作方法 ==========
 
   function addTask(task) {
+    console.info('📝 addTask 被调用')
     const newTask = {
       ...normalizeTask(task),
       id: Date.now().toString(),
@@ -241,6 +241,7 @@ export const useTaskStore = defineStore('tasks', () => {
   }
 
   function updateTask(id, updates) {
+    console.info('📝 updateTask 被调用')
     const idx = tasks.value.findIndex(t => t.id === id)
     if (idx === -1) return
 
@@ -260,30 +261,35 @@ export const useTaskStore = defineStore('tasks', () => {
   }
 
   function deleteTask(id) {
+    console.info('📝 deleteTask 被调用')
     tasks.value = tasks.value.filter(t => t.id !== id)
     persist()
     saveToCloud()
   }
 
   function deleteTasks(ids) {
+    console.info('📝 deleteTasks 被调用')
     tasks.value = tasks.value.filter(t => !ids.includes(t.id))
     persist()
     saveToCloud()
   }
 
   function clearCompleted() {
+    console.info('📝 clearCompleted 被调用')
     tasks.value = tasks.value.filter(t => !t.completed)
     persist()
     saveToCloud()
   }
 
   function clearAll() {
+    console.info('📝 clearAll 被调用')
     tasks.value = []
     persist()
     saveToCloud()
   }
 
   function reorderTasks(newOrder) {
+    console.info('📝 reorderTasks 被调用')
     const orderMap = new Map()
     newOrder.forEach((task, idx) => {
       orderMap.set(task.id, idx)
@@ -303,7 +309,11 @@ export const useTaskStore = defineStore('tasks', () => {
   }
 
   function importTasks(imported, mode = 'replace') {
-    if (!Array.isArray(imported)) return
+    console.info('📝 importTasks 被调用，模式:', mode)
+    if (!Array.isArray(imported)) {
+      console.warn('⚠️ importTasks 收到的不是数组:', typeof imported)
+      return
+    }
     const normalized = imported.map(normalizeTask)
     if (mode === 'replace') {
       tasks.value = normalized
@@ -345,6 +355,6 @@ export const useTaskStore = defineStore('tasks', () => {
     getTasksForStats,
     fetchFromCloud,
     syncToCloud,
-    saveToCloud  // 新增：导出 saveToCloud 别名
+    saveToCloud
   }
 })
