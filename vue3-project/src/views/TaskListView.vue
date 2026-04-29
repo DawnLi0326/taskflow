@@ -187,6 +187,16 @@ async function batchDelete() {
   }
 }
 
+function toggleSelectTask(taskId, checked) {
+  if (checked) {
+    if (!selectedIds.value.includes(taskId)) {
+      selectedIds.value.push(taskId)
+    }
+  } else {
+    selectedIds.value = selectedIds.value.filter(id => id !== taskId)
+  }
+}
+
 async function clearCompleted() {
   if (completedTasks.value.length === 0) return
   try {
@@ -420,8 +430,8 @@ const formRules = {
           @mouseleave="hoveredTaskId = null"
         >
           <el-checkbox
-            :value="task.id"
-            v-model="selectedIds"
+            :model-value="selectedIds.includes(task.id)"
+            @change="(val) => toggleSelectTask(task.id, val)"
             class="task-checkbox select-checkbox"
           />
           <el-checkbox

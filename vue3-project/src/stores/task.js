@@ -9,10 +9,8 @@ const STORAGE_KEY = STORAGE_KEYS.TASKS
 
 // ========== 3. 云端同步配置 ==========
 // 使用 Vercel Serverless Function 代理，避免 API Key 暴露在前端
-// 开发环境使用本地代理，生产环境使用 Vercel 部署的代理
-const API_PROXY_URL = import.meta.env.DEV
-  ? '/api/sync'
-  : 'https://your-vercel-app.vercel.app/api/sync'  // 替换为你的 Vercel 部署地址
+// 前端和 API 在同一域名下，始终使用相对路径
+const API_PROXY_URL = '/api/sync'
 
 // 防抖计时器（避免短时间内多次同步）
 let syncDebounceTimer = null
