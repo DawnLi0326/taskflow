@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -38,9 +38,7 @@ const formRef = ref()
 const filterStatus = ref(FILTER_STATUS.ALL)
 const searchQuery = ref('')
 const selectedIds = ref([])
-
-// 移动端检测
-const isMobile = ref(false)
+const isMobile = ref(window.innerWidth < 768)
 
 // Computed
 const today = computed(() => new Date().toISOString().split('T')[0])
@@ -114,20 +112,22 @@ onMounted(() => {
   const f = route.query.filter
   if (f === 'new') openAddDialog()
   else if (f === 'overdue') filterStatus.value = FILTER_STATUS.OVERDUE
-
-  // 检测移动端
-  checkMobile()
-  window.addEventListener('resize', checkMobile)
+  
+  window.addEventListener('resize', handleResize)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+})
+
+function handleResize() {
+  isMobile.value = window.innerWidth < 768
+}
 
 watch(() => route.query.filter, (f) => {
   if (f === 'new') openAddDialog()
   else if (f === 'overdue') filterStatus.value = FILTER_STATUS.OVERDUE
 })
-
-function checkMobile() {
-  isMobile.value = window.innerWidth <= 768
-}
 
 function openAddDialog() {
   editingTask.value = null
@@ -136,7 +136,6 @@ function openAddDialog() {
 }
 
 function openEditDialog(task) {
-  console.info('📝 openEditDialog 被调用，任务:', task.id)
   editingTask.value = task
   form.value = { title: task.title, dueDate: task.dueDate, priority: task.priority, completed: task.completed }
   dialogVisible.value = true
@@ -368,15 +367,14 @@ const formRules = {
               <span :class="['priority-tag', `priority-${element.priority}`]">
                 {{ PRIORITY_LABELS[element.priority] }}
               </span>
-              <!-- 移动端始终显示操作按钮，桌面端hover显示 -->
-              <div class="task-actions" :class="{ 'always-show': isMobile }" v-show="isMobile || hoveredTaskId === element.id">
-                <el-button link size="small" @click.stop="goToDetail(element.id)" title="详情" class="action-btn">
+              <div class="task-actions" v-show="hoveredTaskId === element.id">
+                <el-button link size="small" @click="goToDetail(element.id)" title="详情">
                   <el-icon size="16"><InfoFilled /></el-icon>
                 </el-button>
-                <el-button link size="small" @click.stop="openEditDialog(element)" title="编辑" class="action-btn">
+                <el-button link size="small" @click="openEditDialog(element)" title="编辑">
                   <el-icon size="16"><Edit /></el-icon>
                 </el-button>
-                <el-button link size="small" type="danger" @click.stop="deleteTask(element.id, element.title)" title="删除" class="action-btn">
+                <el-button link size="small" type="danger" @click="deleteTask(element.id, element.title)" title="删除">
                   <el-icon size="16"><Delete /></el-icon>
                 </el-button>
               </div>
@@ -462,15 +460,14 @@ const formRules = {
           <span :class="['priority-tag', `priority-${task.priority}`]">
             {{ PRIORITY_LABELS[task.priority] }}
           </span>
-          <!-- 移动端始终显示操作按钮，桌面端hover显示 -->
-          <div class="task-actions completed-actions" :class="{ 'always-show': isMobile }" v-show="isMobile || hoveredTaskId === task.id">
-            <el-button link size="small" @click.stop="goToDetail(task.id)" title="详情" class="action-btn">
+          <div class="task-actions completed-actions" v-show="hoveredTaskId === task.id">
+            <el-button link size="small" @click="goToDetail(task.id)" title="详情">
               <el-icon size="16"><InfoFilled /></el-icon>
             </el-button>
-            <el-button link size="small" @click.stop="openEditDialog(task)" title="编辑" class="action-btn">
+            <el-button link size="small" @click="openEditDialog(task)" title="编辑">
               <el-icon size="16"><Edit /></el-icon>
             </el-button>
-            <el-button link size="small" type="danger" @click.stop="deleteTask(task.id, task.title)" title="删除" class="action-btn delete-btn">
+            <el-button link size="small" type="danger" @click="deleteTask(task.id, task.title)" title="删除" class="delete-btn">
               <el-icon size="16"><Delete /></el-icon>
             </el-button>
           </div>
@@ -487,9 +484,7 @@ const formRules = {
       :title="editingTask ? '编辑任务' : '添加新任务'"
       :width="isMobile ? '90%' : '480px'"
       :close-on-click-modal="false"
-      append-to-body
       @close="closeDialog"
-      class="task-dialog"
     >
       <el-form
         ref="formRef"
@@ -767,20 +762,7 @@ const formRules = {
   gap: 4px;
 }
 
-/* 移动端始终显示操作按钮 */
-.task-actions.always-show {
-  display: flex;
-}
 
-/* 移动端操作按钮样式 */
-.action-btn {
-  min-height: 44px;
-  min-width: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-}
 
 .empty-section {
   padding: 32px 0;
@@ -792,6 +774,8 @@ const formRules = {
   background: var(--color-primary-light) !important;
   border: 2px dashed var(--color-primary) !important;
 }
+
+
 
 .priority-tag {
   padding: 2px 8px;
@@ -835,12 +819,6 @@ const formRules = {
   gap: 8px;
 }
 
-/* 移动端弹窗样式 */
-.task-dialog {
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
 @media (max-width: 768px) {
   .task-list-page {
     padding: 16px;
@@ -863,38 +841,6 @@ const formRules = {
   .incomplete-section,
   .completed-section {
     padding: 12px;
-  }
-
-  .task-card {
-    padding: 12px;
-    gap: 8px;
-  }
-
-  .task-card-info {
-    flex: 1;
-  }
-
-  .task-card-title {
-    font-size: 13px;
-  }
-
-  .task-card-meta {
-    font-size: 11px;
-  }
-
-  .priority-tag {
-    font-size: 11px;
-    padding: 1px 6px;
-  }
-
-  .task-actions {
-    gap: 2px;
-  }
-
-  .action-btn {
-    min-height: 44px;
-    min-width: 44px;
-    padding: 6px;
   }
 }
 </style>
