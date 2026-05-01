@@ -331,7 +331,7 @@ const formRules = {
             <el-radio-button value="completed">已完成 ({{ taskStore.completedCount }})</el-radio-button>
             <el-radio-button value="overdue">逾期 ({{ taskStore.overdueTasks.length }})</el-radio-button>
           </el-radio-group>
-          <el-select v-model="settingsStore.sortOrder" placeholder="排序方式" size="small" class="sort-select">
+          <el-select v-model="settingsStore.sortOrder" placeholder="排序方式" size="small" class="sort-select" prefix-icon="Sort">
             <el-option value="dueDate" label="按截止日期" />
             <el-option value="priority" label="按优先级" />
             <el-option value="custom" label="自定义排序" />
