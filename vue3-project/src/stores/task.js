@@ -6,6 +6,7 @@ import { STORAGE_KEYS } from '../constants'
 
 // ========== 2. 常量配置 ==========
 const STORAGE_KEY = STORAGE_KEYS.TASKS
+const API_PROXY_URL = '/api/sync'
 
 // ========== 3. 工具函数 ==========
 
@@ -57,10 +58,55 @@ function loadFromLocalStorage(key) {
 
 // ========== 5. Pinia Store 定义 ==========
 export const useTaskStore = defineStore('tasks', () => {
-  const tasks = ref(loadFromLocalStorage(STORAGE_KEY))
+  const tasks = ref([])
 
   function persist() {
     saveToLocalStorage(STORAGE_KEY, tasks.value)
+  }
+
+  // ========== 云端同步方法 ==========
+
+  async function fetchFromCloud() {
+    try {
+      const res = await fetch(API_PROXY_URL)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      let cloudTasks = data.tasks || (Array.isArray(data) ? data : [])
+      if (Array.isArray(cloudTasks)) {
+        tasks.value = cloudTasks.map(task => ({
+          notes: '',
+          order: 0,
+          ...task,
+          completed: !!task.completed,
+        }))
+        persist()
+        console.log('✅ 云端数据已同步到本地')
+      }
+    } catch (error) {
+      console.error('❌ 从云端拉取数据失败:', error)
+    }
+  }
+
+  async function saveToCloud() {
+    try {
+      const res = await fetch(API_PROXY_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks: tasks.value }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      console.log('✅ 数据已同步到云端')
+    } catch (error) {
+      console.error('❌ 同步到云端失败:', error)
+    }
+  }
+
+  async function initTasks() {
+    await fetchFromCloud()
+    if (!tasks.value.length) {
+      tasks.value = loadFromLocalStorage(STORAGE_KEY)
+      console.log('ℹ️ 使用本地存储数据')
+    }
   }
 
   // ========== 5.1 计算属性 ==========
@@ -127,6 +173,7 @@ export const useTaskStore = defineStore('tasks', () => {
     }
     tasks.value.push(newTask)
     persist()
+    saveToCloud()
   }
 
   function updateTask(id, updates) {
@@ -145,26 +192,31 @@ export const useTaskStore = defineStore('tasks', () => {
 
     tasks.value[idx] = newTask
     persist()
+    saveToCloud()
   }
 
   function deleteTask(id) {
     tasks.value = tasks.value.filter(t => t.id !== id)
     persist()
+    saveToCloud()
   }
 
   function deleteTasks(ids) {
     tasks.value = tasks.value.filter(t => !ids.includes(t.id))
     persist()
+    saveToCloud()
   }
 
   function clearCompleted() {
     tasks.value = tasks.value.filter(t => !t.completed)
     persist()
+    saveToCloud()
   }
 
   function clearAll() {
     tasks.value = []
     persist()
+    saveToCloud()
   }
 
   function reorderTasks(newOrder) {
@@ -183,6 +235,7 @@ export const useTaskStore = defineStore('tasks', () => {
     const completedTasks = tasks.value.filter(t => t.completed)
     tasks.value = [...uncompletedOrdered, ...completedTasks]
     persist()
+    saveToCloud()
   }
 
   function importTasks(imported, mode = 'replace') {
@@ -196,6 +249,7 @@ export const useTaskStore = defineStore('tasks', () => {
       tasks.value.push(...newTasks)
     }
     persist()
+    saveToCloud()
   }
 
   function getTasksForStats() {
@@ -225,5 +279,8 @@ export const useTaskStore = defineStore('tasks', () => {
     reorderTasks,
     importTasks,
     getTasksForStats,
+    fetchFromCloud,
+    saveToCloud,
+    initTasks,
   }
 })
