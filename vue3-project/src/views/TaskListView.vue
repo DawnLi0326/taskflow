@@ -989,4 +989,66 @@ const formRules = {
     display: block;
   }
 }
+
+@media (max-width: 375px) {
+  .task-list-page {
+    padding: 12px;
+  }
+
+  .page-header {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .header-left {
+    flex: 1;
+  }
+
+  .header-left h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .header-left .task-count {
+    display: none;
+  }
+
+  .page-header .el-button {
+    padding: 8px 12px;
+    font-size: 0;
+    min-width: auto;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .page-header .el-button .el-icon {
+    margin-right: 0;
+  }
+
+  .filter-controls {
+    gap: 8px !important;
+  }
+
+  .el-radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .el-radio-group .el-radio-button {
+    padding: 4px 8px;
+    font-size: 12px;
+    min-width: auto;
+  }
+
+  .sort-select {
+    min-width: 100% !important;
+    font-size: 12px;
+  }
+}
 </style>
