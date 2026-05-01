@@ -359,7 +359,7 @@ const formRules = {
           ghost-class="dragging-ghost"
         >
           <template #item="{ element }">
-            <div class="task-card" :class="{ overdue: isOverdue(element) }" @mouseenter="hoveredTaskId = element.id" @mouseleave="hoveredTaskId = null">
+            <div class="task-card" :class="{ overdue: isOverdue(element) }">
               <div
                 v-if="settingsStore.sortOrder === SORT_ORDER.CUSTOM"
                 class="drag-handle"
@@ -388,8 +388,8 @@ const formRules = {
                 {{ PRIORITY_LABELS[element.priority] }}
               </span>
               
-              <!-- PC端：hover显示操作按钮 -->
-              <div class="task-actions desktop-actions" v-show="hoveredTaskId === element.id">
+              <!-- PC端：始终显示操作按钮 -->
+              <div class="task-actions desktop-actions">
                 <el-button link size="small" @click="goToDetail(element.id)" title="详情">
                   <el-icon size="16"><InfoFilled /></el-icon>
                 </el-button>
@@ -472,8 +472,6 @@ const formRules = {
           v-for="task in completedTasks"
           :key="task.id"
           class="task-card completed-card"
-          @mouseenter="hoveredTaskId = task.id"
-          @mouseleave="hoveredTaskId = null"
         >
           <el-checkbox
             :model-value="selectedIds.includes(task.id)"
@@ -496,8 +494,8 @@ const formRules = {
             {{ PRIORITY_LABELS[task.priority] }}
           </span>
           
-          <!-- PC端：hover显示操作按钮 -->
-          <div class="task-actions completed-actions desktop-actions" v-show="hoveredTaskId === task.id">
+          <!-- PC端：始终显示操作按钮 -->
+          <div class="task-actions completed-actions desktop-actions">
             <el-button link size="small" @click="goToDetail(task.id)" title="详情">
               <el-icon size="16"><InfoFilled /></el-icon>
             </el-button>
