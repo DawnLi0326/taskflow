@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { InfoFilled, Plus, Sort, Rank, Calendar, Edit, Delete, DeleteFilled } from '@element-plus/icons-vue'
+import { InfoFilled, Plus, Sort, Rank, Calendar, Edit, Delete, DeleteFilled, More } from '@element-plus/icons-vue'
 import { useTaskStore } from '../stores/task'
 import { useSettingsStore } from '../stores/settings'
 
@@ -39,6 +39,7 @@ const filterStatus = ref(FILTER_STATUS.ALL)
 const searchQuery = ref('')
 const selectedIds = ref([])
 const isMobile = ref(window.innerWidth < 768)
+const activeMenuId = ref(null)
 
 // Computed
 const today = computed(() => new Date().toISOString().split('T')[0])
@@ -275,6 +276,18 @@ function goToDetail(id) {
   router.push(`/task/${id}`)
 }
 
+function toggleMobileMenu(taskId) {
+  if (activeMenuId.value === taskId) {
+    activeMenuId.value = null
+  } else {
+    activeMenuId.value = taskId
+  }
+}
+
+function closeMobileMenu() {
+  activeMenuId.value = null
+}
+
 const formRules = {
   title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
   dueDate: [{ required: true, message: '请选择截止日期', trigger: 'change' }],
@@ -367,7 +380,9 @@ const formRules = {
               <span :class="['priority-tag', `priority-${element.priority}`]">
                 {{ PRIORITY_LABELS[element.priority] }}
               </span>
-              <div class="task-actions" v-show="hoveredTaskId === element.id">
+              
+              <!-- PC端：hover显示操作按钮 -->
+              <div class="task-actions desktop-actions" v-show="hoveredTaskId === element.id">
                 <el-button link size="small" @click="goToDetail(element.id)" title="详情">
                   <el-icon size="16"><InfoFilled /></el-icon>
                 </el-button>
@@ -377,6 +392,37 @@ const formRules = {
                 <el-button link size="small" type="danger" @click="deleteTask(element.id, element.title)" title="删除">
                   <el-icon size="16"><Delete /></el-icon>
                 </el-button>
+              </div>
+              
+              <!-- 移动端：更多按钮 -->
+              <div class="mobile-menu-container">
+                <el-button
+                  link
+                  size="small"
+                  class="mobile-more-btn"
+                  @click.stop="toggleMobileMenu(element.id)"
+                  title="更多"
+                >
+                  <el-icon size="16"><More /></el-icon>
+                </el-button>
+                <div
+                  v-if="activeMenuId === element.id"
+                  class="mobile-menu"
+                  @click.stop
+                >
+                  <div class="mobile-menu-item" @click="goToDetail(element.id); closeMobileMenu()">
+                    <el-icon size="14"><InfoFilled /></el-icon>
+                    <span>详情</span>
+                  </div>
+                  <div class="mobile-menu-item" @click="openEditDialog(element); closeMobileMenu()">
+                    <el-icon size="14"><Edit /></el-icon>
+                    <span>编辑</span>
+                  </div>
+                  <div class="mobile-menu-item mobile-menu-item-danger" @click="deleteTask(element.id, element.title); closeMobileMenu()">
+                    <el-icon size="14"><Delete /></el-icon>
+                    <span>删除</span>
+                  </div>
+                </div>
               </div>
             </div>
           </template>
@@ -460,7 +506,9 @@ const formRules = {
           <span :class="['priority-tag', `priority-${task.priority}`]">
             {{ PRIORITY_LABELS[task.priority] }}
           </span>
-          <div class="task-actions completed-actions" v-show="hoveredTaskId === task.id">
+          
+          <!-- PC端：hover显示操作按钮 -->
+          <div class="task-actions completed-actions desktop-actions" v-show="hoveredTaskId === task.id">
             <el-button link size="small" @click="goToDetail(task.id)" title="详情">
               <el-icon size="16"><InfoFilled /></el-icon>
             </el-button>
@@ -470,6 +518,37 @@ const formRules = {
             <el-button link size="small" type="danger" @click="deleteTask(task.id, task.title)" title="删除" class="delete-btn">
               <el-icon size="16"><Delete /></el-icon>
             </el-button>
+          </div>
+          
+          <!-- 移动端：更多按钮 -->
+          <div class="mobile-menu-container">
+            <el-button
+              link
+              size="small"
+              class="mobile-more-btn"
+              @click.stop="toggleMobileMenu(task.id)"
+              title="更多"
+            >
+              <el-icon size="16"><More /></el-icon>
+            </el-button>
+            <div
+              v-if="activeMenuId === task.id"
+              class="mobile-menu"
+              @click.stop
+            >
+              <div class="mobile-menu-item" @click="goToDetail(task.id); closeMobileMenu()">
+                <el-icon size="14"><InfoFilled /></el-icon>
+                <span>详情</span>
+              </div>
+              <div class="mobile-menu-item" @click="openEditDialog(task); closeMobileMenu()">
+                <el-icon size="14"><Edit /></el-icon>
+                <span>编辑</span>
+              </div>
+              <div class="mobile-menu-item mobile-menu-item-danger" @click="deleteTask(task.id, task.title); closeMobileMenu()">
+                <el-icon size="14"><Delete /></el-icon>
+                <span>删除</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -762,6 +841,48 @@ const formRules = {
   gap: 4px;
 }
 
+.mobile-menu-container {
+  position: relative;
+  display: none;
+}
+
+.mobile-more-btn {
+  padding: 4px;
+  color: var(--color-text-muted);
+}
+
+.mobile-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--color-border);
+  min-width: 100px;
+  z-index: 100;
+}
+
+.mobile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.mobile-menu-item:hover {
+  background: var(--color-surface);
+}
+
+.mobile-menu-item-danger {
+  color: var(--color-error);
+}
+
 
 
 .empty-section {
@@ -841,6 +962,14 @@ const formRules = {
   .incomplete-section,
   .completed-section {
     padding: 12px;
+  }
+
+  .desktop-actions {
+    display: none !important;
+  }
+
+  .mobile-menu-container {
+    display: block;
   }
 }
 </style>
