@@ -81,7 +81,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
   async function fetchFromCloud() {
     if (isSyncing.value) return
-    
+
     try {
       isSyncing.value = true
       const startTime = Date.now()
@@ -89,12 +89,12 @@ export const useTaskStore = defineStore('tasks', () => {
         method: 'GET',
         cache: 'no-cache',
       })
-      
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      
+
       const data = await res.json()
       const cloudTasks = data.tasks || (Array.isArray(data) ? data : [])
-      
+
       if (Array.isArray(cloudTasks) && cloudTasks.length > 0) {
         const updatedTasks = cloudTasks.map(task => ({
           notes: '',
@@ -102,7 +102,7 @@ export const useTaskStore = defineStore('tasks', () => {
           ...task,
           completed: !!task.completed,
         }))
-        
+
         // 只在云端数据更新时才同步
         const hasChanges = JSON.stringify(updatedTasks) !== JSON.stringify(tasks.value)
         if (hasChanges) {
@@ -111,7 +111,7 @@ export const useTaskStore = defineStore('tasks', () => {
           console.log('✅ 云端数据已同步到本地')
         }
       }
-      
+
       lastSyncTime.value = Date.now()
       console.log(`⏱️ 云端同步耗时: ${Date.now() - startTime}ms`)
     } catch (error) {
@@ -124,7 +124,7 @@ export const useTaskStore = defineStore('tasks', () => {
   // 带防抖的云端保存函数
   const debouncedSaveToCloud = debounce(async function () {
     if (isSyncing.value) return
-    
+
     try {
       isSyncing.value = true
       const startTime = Date.now()
@@ -133,9 +133,9 @@ export const useTaskStore = defineStore('tasks', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tasks: tasks.value }),
       })
-      
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      
+
       lastSyncTime.value = Date.now()
       console.log(`✅ 数据已同步到云端 (耗时: ${Date.now() - startTime}ms)`)
     } catch (error) {
@@ -156,7 +156,7 @@ export const useTaskStore = defineStore('tasks', () => {
       tasks.value = localTasks
       console.log('ℹ️ 已加载本地存储数据')
     }
-    
+
     // 然后后台异步同步云端数据
     setTimeout(() => {
       fetchFromCloud()

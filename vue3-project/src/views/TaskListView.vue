@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { InfoFilled, Plus, Sort, Rank, Calendar, Edit, Delete, DeleteFilled, MoreFilled } from '@element-plus/icons-vue'
+import { InfoFilled, Plus, Sort, Rank, Calendar, Edit, Delete, DeleteFilled } from '@element-plus/icons-vue'
 import { useTaskStore } from '../stores/task'
 import { useSettingsStore } from '../stores/settings'
 
@@ -39,7 +39,6 @@ const filterStatus = ref(FILTER_STATUS.ALL)
 const searchQuery = ref('')
 const selectedIds = ref([])
 const isMobile = ref(window.innerWidth < 768)
-const mobileMoreMenu = ref(null)
 
 // Computed
 const today = computed(() => new Date().toISOString().split('T')[0])
@@ -272,14 +271,6 @@ function formatDate(date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function toggleMoreMenu(taskId) {
-  mobileMoreMenu.value = mobileMoreMenu.value === taskId ? null : taskId
-}
-
-function closeMoreMenu() {
-  mobileMoreMenu.value = null
-}
-
 function goToDetail(id) {
   router.push(`/task/${id}`)
 }
@@ -376,8 +367,7 @@ const formRules = {
               <span :class="['priority-tag', `priority-${element.priority}`]">
                 {{ PRIORITY_LABELS[element.priority] }}
               </span>
-              <!-- PC端操作按钮 -->
-              <div class="task-actions" v-show="!isMobile && hoveredTaskId === element.id">
+              <div class="task-actions" v-show="hoveredTaskId === element.id">
                 <el-button link size="small" @click="goToDetail(element.id)" title="详情">
                   <el-icon size="16"><InfoFilled /></el-icon>
                 </el-button>
@@ -387,37 +377,6 @@ const formRules = {
                 <el-button link size="small" type="danger" @click="deleteTask(element.id, element.title)" title="删除">
                   <el-icon size="16"><Delete /></el-icon>
                 </el-button>
-              </div>
-              
-              <!-- 手机端更多按钮 -->
-              <div class="mobile-more" v-show="isMobile">
-                <el-button
-                  link
-                  size="small"
-                  @click.stop="toggleMoreMenu(element.id)"
-                  title="更多"
-                  class="more-btn"
-                >
-                  <el-icon size="18"><MoreFilled /></el-icon>
-                </el-button>
-                <div
-                  v-if="mobileMoreMenu === element.id"
-                  class="more-menu"
-                  @click.stop
-                >
-                  <div class="more-menu-item" @click="goToDetail(element.id); closeMoreMenu()">
-                    <el-icon size="14"><InfoFilled /></el-icon>
-                    <span>详情</span>
-                  </div>
-                  <div class="more-menu-item" @click="openEditDialog(element); closeMoreMenu()">
-                    <el-icon size="14"><Edit /></el-icon>
-                    <span>编辑</span>
-                  </div>
-                  <div class="more-menu-item delete" @click="deleteTask(element.id, element.title); closeMoreMenu()">
-                    <el-icon size="14"><Delete /></el-icon>
-                    <span>删除</span>
-                  </div>
-                </div>
               </div>
             </div>
           </template>
@@ -501,8 +460,7 @@ const formRules = {
           <span :class="['priority-tag', `priority-${task.priority}`]">
             {{ PRIORITY_LABELS[task.priority] }}
           </span>
-          <!-- PC端操作按钮 -->
-          <div class="task-actions completed-actions" v-show="!isMobile && hoveredTaskId === task.id">
+          <div class="task-actions completed-actions" v-show="hoveredTaskId === task.id">
             <el-button link size="small" @click="goToDetail(task.id)" title="详情">
               <el-icon size="16"><InfoFilled /></el-icon>
             </el-button>
@@ -512,37 +470,6 @@ const formRules = {
             <el-button link size="small" type="danger" @click="deleteTask(task.id, task.title)" title="删除" class="delete-btn">
               <el-icon size="16"><Delete /></el-icon>
             </el-button>
-          </div>
-          
-          <!-- 手机端更多按钮 -->
-          <div class="mobile-more" v-show="isMobile">
-            <el-button
-              link
-              size="small"
-              @click.stop="toggleMoreMenu(task.id)"
-              title="更多"
-              class="more-btn"
-            >
-              <el-icon size="18"><MoreFilled /></el-icon>
-            </el-button>
-            <div
-              v-if="mobileMoreMenu === task.id"
-              class="more-menu"
-              @click.stop
-            >
-              <div class="more-menu-item" @click="goToDetail(task.id); closeMoreMenu()">
-                <el-icon size="14"><InfoFilled /></el-icon>
-                <span>详情</span>
-              </div>
-              <div class="more-menu-item" @click="openEditDialog(task); closeMoreMenu()">
-                <el-icon size="14"><Edit /></el-icon>
-                <span>编辑</span>
-              </div>
-              <div class="more-menu-item delete" @click="deleteTask(task.id, task.title); closeMoreMenu()">
-                <el-icon size="14"><Delete /></el-icon>
-                <span>删除</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -892,52 +819,6 @@ const formRules = {
   gap: 8px;
 }
 
-.mobile-more {
-  position: relative;
-}
-
-.more-btn {
-  padding: 4px;
-  color: var(--color-text-muted);
-}
-
-.more-btn:hover {
-  color: var(--color-text-secondary);
-}
-
-.more-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  padding: 4px;
-  min-width: 100px;
-  z-index: 100;
-}
-
-.more-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: var(--color-text);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.more-menu-item:hover {
-  background: var(--color-surface);
-}
-
-.more-menu-item.delete {
-  color: var(--color-error);
-}
-
 @media (max-width: 768px) {
   .task-list-page {
     padding: 16px;
@@ -960,25 +841,6 @@ const formRules = {
   .incomplete-section,
   .completed-section {
     padding: 12px;
-  }
-
-  .task-card {
-    gap: 8px;
-    padding: 10px 12px;
-  }
-
-  .priority-tag {
-    padding: 1px 6px;
-    font-size: 11px;
-  }
-
-  .more-menu {
-    min-width: 90px;
-  }
-
-  .more-menu-item {
-    padding: 6px 10px;
-    font-size: 12px;
   }
 }
 </style>

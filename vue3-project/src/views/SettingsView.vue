@@ -261,7 +261,7 @@ async function clearAllTasks() {
         </div>
         <div class="about-item">
           <span class="about-key">数据存储</span>
-          <span class="about-val">LocalStorage（本地缓存）</span>
+          <span class="about-val">LocalStorage（本地缓存）云端存储</span>
         </div>
       </div>
     </div>
