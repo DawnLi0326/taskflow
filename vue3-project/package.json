@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && cp public/_routes.json dist/_routes.json 2>/dev/null || copy public\\_routes.json dist\\_routes.json",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
