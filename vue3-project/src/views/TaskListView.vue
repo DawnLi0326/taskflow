@@ -309,7 +309,6 @@ const formRules = {
       <div class="page-header">
         <div class="header-left">
           <h2>任务列表</h2>
-          <span class="task-count">共 {{ taskStore.totalCount }} 个任务</span>
         </div>
         <el-button type="primary" @click="openAddDialog" round>
           <el-icon><Plus /></el-icon> 添加新任务
@@ -662,11 +661,7 @@ const formRules = {
 .header-left h2 {
   font-size: 22px;
   font-weight: 700;
-}
-
-.task-count {
-  font-size: 13px;
-  color: var(--color-text-muted);
+  color: var(--color-text);
 }
 
 .filters-row {
@@ -687,10 +682,31 @@ const formRules = {
 
 .sort-select {
   min-width: 120px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  transition: all var(--transition-fast);
+}
+
+.sort-select:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-light);
 }
 
 .search-input {
   width: 240px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  transition: all var(--transition-fast);
+}
+
+.search-input:hover {
+  border-color: var(--color-primary);
+}
+
+.search-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-light);
+  outline: none;
 }
 
 .section-block {
@@ -996,59 +1012,76 @@ const formRules = {
   }
 
   .page-header {
-    flex-direction: row;
-    align-items: center;
-  }
-
-  .header-left {
-    flex: 1;
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+    margin-bottom: 12px;
   }
 
   .header-left h2 {
     font-size: 18px;
     font-weight: 600;
-    margin: 0;
-  }
-
-  .header-left .task-count {
-    display: none;
   }
 
   .page-header .el-button {
-    padding: 8px 12px;
-    font-size: 0;
-    min-width: auto;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
+    width: 100%;
     justify-content: center;
   }
 
-  .page-header .el-button .el-icon {
-    margin-right: 0;
+  .filters-row {
+    gap: 8px;
+    margin-bottom: 16px;
   }
 
-  .filter-controls {
-    gap: 8px !important;
+  .sort-select {
+    min-width: 100%;
+  }
+
+  .search-input {
+    width: 100%;
   }
 
   .el-radio-group {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
   }
 
-  .el-radio-group .el-radio-button {
-    padding: 4px 8px;
-    font-size: 12px;
-    min-width: auto;
+  .el-radio-button {
+    flex: 1;
+    min-width: calc(50% - 4px);
+    margin-bottom: 4px;
   }
 
-  .sort-select {
-    min-width: 100% !important;
+  .incomplete-section,
+  .completed-section {
+    padding: 8px;
+  }
+
+  .section-label {
+    padding: 0 4px 6px;
+    margin-bottom: 8px;
+  }
+
+  .section-label span {
     font-size: 12px;
+  }
+
+  .task-card {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .task-card-title {
+    font-size: 13px;
+  }
+
+  .task-card-meta {
+    font-size: 11px;
+  }
+
+  .priority-tag {
+    padding: 2px 6px;
+    font-size: 11px;
   }
 }
 </style>
