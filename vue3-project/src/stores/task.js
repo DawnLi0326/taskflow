@@ -172,7 +172,7 @@ export const useTaskStore = defineStore('tasks', () => {
   const incompleteCount = computed(() => tasks.value.filter(isIncomplete).length)
 
   const todayDueTasks = computed(() =>
-    tasks.value.filter(t => isIncomplete(t) && t.dueDate === today.value)
+    tasks.value.filter(t => t.dueDate === today.value)
   )
   const todayDueCount = computed(() => todayDueTasks.value.length)
 
