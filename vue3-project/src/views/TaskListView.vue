@@ -331,7 +331,11 @@ const formRules = {
             <el-radio-button value="completed">已完成 ({{ taskStore.completedCount }})</el-radio-button>
             <el-radio-button value="overdue">逾期 ({{ taskStore.overdueTasks.length }})</el-radio-button>
           </el-radio-group>
-          <el-select v-model="settingsStore.sortOrder" placeholder="排序方式" size="small" class="sort-select" prefix-icon="Sort">
+          <div class="sort-label">
+            <el-icon size="14"><Sort /></el-icon>
+            <span>排序</span>
+          </div>
+          <el-select v-model="settingsStore.sortOrder" placeholder="排序方式" size="small" class="sort-select">
             <el-option value="dueDate" label="按截止日期" />
             <el-option value="priority" label="按优先级" />
             <el-option value="custom" label="自定义排序" />
@@ -692,6 +696,15 @@ const formRules = {
   width: 240px;
 }
 
+.sort-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-right: 4px;
+}
+
 .section-block {
   margin-bottom: 24px;
   border-radius: 10px;
@@ -986,6 +999,10 @@ const formRules = {
 
   .mobile-menu-container {
     display: block;
+  }
+
+  .sort-label {
+    display: none;
   }
 }
 </style>
