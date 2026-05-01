@@ -1,9 +1,29 @@
 {
   "version": 1,
-  "include": [
-    "/*"
-  ],
-  "exclude": [
-    "/api/*"
+  "routes": [
+    {
+      "src": "^/api/sync$",
+      "dest": "/api/sync",
+      "method": [
+        "GET",
+        "PUT",
+        "OPTIONS"
+      ]
+    },
+    {
+      "src": "^/api/(.*)$",
+      "dest": "/api/$1",
+      "method": [
+        "GET",
+        "PUT",
+        "POST",
+        "DELETE",
+        "OPTIONS"
+      ]
+    },
+    {
+      "src": "^/(.*)$",
+      "dest": "/index.html"
+    }
   ]
 }
