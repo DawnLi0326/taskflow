@@ -39,6 +39,7 @@ const filterStatus = ref(FILTER_STATUS.ALL)
 const searchQuery = ref('')
 const selectedIds = ref([])
 const isMobile = ref(window.innerWidth < 768)
+const mobileMoreMenu = ref(null)
 
 // Computed
 const today = computed(() => new Date().toISOString().split('T')[0])
@@ -271,6 +272,14 @@ function formatDate(date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function toggleMoreMenu(taskId) {
+  mobileMoreMenu.value = mobileMoreMenu.value === taskId ? null : taskId
+}
+
+function closeMoreMenu() {
+  mobileMoreMenu.value = null
+}
+
 function goToDetail(id) {
   router.push(`/task/${id}`)
 }
@@ -286,58 +295,18 @@ const formRules = {
   <div class="task-list-page">
     <!-- Header and Filters -->
     <div class="header-container">
-      <!-- PC Header -->
-      <div class="page-header pc-header">
+      <div class="page-header">
         <div class="header-left">
           <h2>任务列表</h2>
           <span class="task-count">共 {{ taskStore.totalCount }} 个任务</span>
         </div>
-        <div class="header-right">
-          <el-select v-model="settingsStore.sortOrder" placeholder="排序方式" size="small" class="sort-select">
-            <el-option value="dueDate" label="按截止日期" />
-            <el-option value="priority" label="按优先级" />
-            <el-option value="custom" label="自定义排序" />
-          </el-select>
-          <el-button type="primary" @click="openAddDialog" round>
-            <el-icon><Plus /></el-icon> 添加新任务
-          </el-button>
-        </div>
+        <el-button type="primary" @click="openAddDialog" round>
+          <el-icon><Plus /></el-icon> 添加新任务
+        </el-button>
       </div>
 
-      <!-- Mobile Header -->
-      <div class="mobile-header">
-        <div class="mobile-header-row">
-          <h2>任务列表</h2>
-          <el-button type="primary" @click="openAddDialog" round>
-            <el-icon><Plus /></el-icon>
-          </el-button>
-        </div>
-        <el-input
-          v-model="searchQuery"
-          placeholder="搜索任务..."
-          clearable
-          class="search-input-mobile"
-          prefix-icon="Search"
-        />
-        <div class="filter-scroll">
-          <el-radio-group v-model="filterStatus">
-            <el-radio-button value="all">全部</el-radio-button>
-            <el-radio-button value="incomplete">未完成</el-radio-button>
-            <el-radio-button value="completed">已完成</el-radio-button>
-            <el-radio-button value="overdue">逾期</el-radio-button>
-          </el-radio-group>
-        </div>
-        <div class="mobile-sort-row">
-          <el-select v-model="settingsStore.sortOrder" placeholder="排序方式" size="small" class="sort-select-mobile">
-            <el-option value="dueDate" label="按截止日期" />
-            <el-option value="priority" label="按优先级" />
-            <el-option value="custom" label="自定义排序" />
-          </el-select>
-        </div>
-      </div>
-
-      <!-- PC Filters -->
-      <div class="filters-row pc-filters">
+      <!-- Filters -->
+      <div class="filters-row">
         <div class="filter-controls">
           <el-input
             v-model="searchQuery"
@@ -352,6 +321,11 @@ const formRules = {
             <el-radio-button value="completed">已完成 ({{ taskStore.completedCount }})</el-radio-button>
             <el-radio-button value="overdue">逾期 ({{ taskStore.overdueTasks.length }})</el-radio-button>
           </el-radio-group>
+          <el-select v-model="settingsStore.sortOrder" placeholder="排序方式" size="small" class="sort-select">
+            <el-option value="dueDate" label="按截止日期" />
+            <el-option value="priority" label="按优先级" />
+            <el-option value="custom" label="自定义排序" />
+          </el-select>
         </div>
       </div>
     </div>
@@ -402,8 +376,8 @@ const formRules = {
               <span :class="['priority-tag', `priority-${element.priority}`]">
                 {{ PRIORITY_LABELS[element.priority] }}
               </span>
-              <!-- PC Actions -->
-              <div class="task-actions pc-actions" v-show="hoveredTaskId === element.id">
+              <!-- PC端操作按钮 -->
+              <div class="task-actions" v-show="!isMobile && hoveredTaskId === element.id">
                 <el-button link size="small" @click="goToDetail(element.id)" title="详情">
                   <el-icon size="16"><InfoFilled /></el-icon>
                 </el-button>
@@ -414,34 +388,36 @@ const formRules = {
                   <el-icon size="16"><Delete /></el-icon>
                 </el-button>
               </div>
-              <!-- Mobile Actions -->
-              <div class="mobile-actions">
-                <el-popover
-                  placement="bottom-end"
-                  width="120"
-                  trigger="click"
-                  popper-class="mobile-action-popover"
+              
+              <!-- 手机端更多按钮 -->
+              <div class="mobile-more" v-show="isMobile">
+                <el-button
+                  link
+                  size="small"
+                  @click.stop="toggleMoreMenu(element.id)"
+                  title="更多"
+                  class="more-btn"
                 >
-                  <template #reference>
-                    <el-button link size="small" class="more-btn">
-                      <el-icon size="16"><MoreFilled /></el-icon>
-                    </el-button>
-                  </template>
-                  <div class="popover-menu">
-                    <div class="popover-item" @click="goToDetail(element.id)">
-                      <el-icon size="14"><InfoFilled /></el-icon>
-                      <span>详情</span>
-                    </div>
-                    <div class="popover-item" @click="openEditDialog(element)">
-                      <el-icon size="14"><Edit /></el-icon>
-                      <span>编辑</span>
-                    </div>
-                    <div class="popover-item popover-item-danger" @click="deleteTask(element.id, element.title)">
-                      <el-icon size="14"><Delete /></el-icon>
-                      <span>删除</span>
-                    </div>
+                  <el-icon size="18"><MoreFilled /></el-icon>
+                </el-button>
+                <div
+                  v-if="mobileMoreMenu === element.id"
+                  class="more-menu"
+                  @click.stop
+                >
+                  <div class="more-menu-item" @click="goToDetail(element.id); closeMoreMenu()">
+                    <el-icon size="14"><InfoFilled /></el-icon>
+                    <span>详情</span>
                   </div>
-                </el-popover>
+                  <div class="more-menu-item" @click="openEditDialog(element); closeMoreMenu()">
+                    <el-icon size="14"><Edit /></el-icon>
+                    <span>编辑</span>
+                  </div>
+                  <div class="more-menu-item delete" @click="deleteTask(element.id, element.title); closeMoreMenu()">
+                    <el-icon size="14"><Delete /></el-icon>
+                    <span>删除</span>
+                  </div>
+                </div>
               </div>
             </div>
           </template>
@@ -525,8 +501,8 @@ const formRules = {
           <span :class="['priority-tag', `priority-${task.priority}`]">
             {{ PRIORITY_LABELS[task.priority] }}
           </span>
-          <!-- PC Actions -->
-          <div class="task-actions completed-actions pc-actions" v-show="hoveredTaskId === task.id">
+          <!-- PC端操作按钮 -->
+          <div class="task-actions completed-actions" v-show="!isMobile && hoveredTaskId === task.id">
             <el-button link size="small" @click="goToDetail(task.id)" title="详情">
               <el-icon size="16"><InfoFilled /></el-icon>
             </el-button>
@@ -537,34 +513,36 @@ const formRules = {
               <el-icon size="16"><Delete /></el-icon>
             </el-button>
           </div>
-          <!-- Mobile Actions -->
-          <div class="mobile-actions">
-            <el-popover
-              placement="bottom-end"
-              width="120"
-              trigger="click"
-              popper-class="mobile-action-popover"
+          
+          <!-- 手机端更多按钮 -->
+          <div class="mobile-more" v-show="isMobile">
+            <el-button
+              link
+              size="small"
+              @click.stop="toggleMoreMenu(task.id)"
+              title="更多"
+              class="more-btn"
             >
-              <template #reference>
-                <el-button link size="small" class="more-btn">
-                  <el-icon size="16"><MoreFilled /></el-icon>
-                </el-button>
-              </template>
-              <div class="popover-menu">
-                <div class="popover-item" @click="goToDetail(task.id)">
-                  <el-icon size="14"><InfoFilled /></el-icon>
-                  <span>详情</span>
-                </div>
-                <div class="popover-item" @click="openEditDialog(task)">
-                  <el-icon size="14"><Edit /></el-icon>
-                  <span>编辑</span>
-                </div>
-                <div class="popover-item popover-item-danger" @click="deleteTask(task.id, task.title)">
-                  <el-icon size="14"><Delete /></el-icon>
-                  <span>删除</span>
-                </div>
+              <el-icon size="18"><MoreFilled /></el-icon>
+            </el-button>
+            <div
+              v-if="mobileMoreMenu === task.id"
+              class="more-menu"
+              @click.stop
+            >
+              <div class="more-menu-item" @click="goToDetail(task.id); closeMoreMenu()">
+                <el-icon size="14"><InfoFilled /></el-icon>
+                <span>详情</span>
               </div>
-            </el-popover>
+              <div class="more-menu-item" @click="openEditDialog(task); closeMoreMenu()">
+                <el-icon size="14"><Edit /></el-icon>
+                <span>编辑</span>
+              </div>
+              <div class="more-menu-item delete" @click="deleteTask(task.id, task.title); closeMoreMenu()">
+                <el-icon size="14"><Delete /></el-icon>
+                <span>删除</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -656,7 +634,6 @@ const formRules = {
   margin-bottom: 24px;
 }
 
-/* PC Header */
 .page-header {
   display: flex;
   align-items: center;
@@ -680,21 +657,6 @@ const formRules = {
   color: var(--color-text-muted);
 }
 
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.sort-select {
-  min-width: 120px;
-}
-
-.search-input {
-  width: 240px;
-}
-
-/* PC Filters */
 .filters-row {
   display: flex;
   align-items: center;
@@ -704,11 +666,19 @@ const formRules = {
   justify-content: space-between;
 }
 
-.filter-controls {
+.filters-row > div {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.sort-select {
+  min-width: 120px;
+}
+
+.search-input {
+  width: 240px;
 }
 
 .section-block {
@@ -865,6 +835,8 @@ const formRules = {
   gap: 4px;
 }
 
+
+
 .empty-section {
   padding: 32px 0;
   text-align: center;
@@ -875,6 +847,8 @@ const formRules = {
   background: var(--color-primary-light) !important;
   border: 2px dashed var(--color-primary) !important;
 }
+
+
 
 .priority-tag {
   padding: 2px 8px;
@@ -918,54 +892,8 @@ const formRules = {
   gap: 8px;
 }
 
-/* Mobile Styles */
-.mobile-header {
-  display: none;
-}
-
-.mobile-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.mobile-header-row h2 {
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.search-input-mobile {
-  width: 100%;
-  margin-bottom: 12px;
-}
-
-.filter-scroll {
-  overflow-x: auto;
-  white-space: nowrap;
-  margin-bottom: 12px;
-  padding-bottom: 4px;
-}
-
-.filter-scroll :deep(.el-radio-group) {
-  display: inline-flex;
-  gap: 8px;
-}
-
-.filter-scroll :deep(.el-radio-button) {
-  flex-shrink: 0;
-}
-
-.mobile-sort-row {
-  margin-bottom: 8px;
-}
-
-.sort-select-mobile {
-  width: 100%;
-}
-
-.mobile-actions {
-  display: none;
+.mobile-more {
+  position: relative;
 }
 
 .more-btn {
@@ -974,33 +902,39 @@ const formRules = {
 }
 
 .more-btn:hover {
-  color: var(--color-text);
+  color: var(--color-text-secondary);
 }
 
-.mobile-action-popover :deep(.el-popover) {
-  padding: 4px 0;
+.more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  min-width: 100px;
+  z-index: 100;
 }
 
-.popover-menu {
-  display: flex;
-  flex-direction: column;
-}
-
-.popover-item {
+.more-menu-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
-  cursor: pointer;
+  padding: 8px 12px;
   font-size: 13px;
   color: var(--color-text);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
 }
 
-.popover-item:hover {
-  background: var(--color-bg);
+.more-menu-item:hover {
+  background: var(--color-surface);
 }
 
-.popover-item-danger {
+.more-menu-item.delete {
   color: var(--color-error);
 }
 
@@ -1009,26 +943,18 @@ const formRules = {
     padding: 16px;
   }
 
-  .header-container {
-    margin-bottom: 16px;
-  }
-
-  /* Hide PC elements */
-  .pc-header,
-  .pc-filters,
-  .pc-actions {
-    display: none !important;
-  }
-
-  /* Show mobile elements */
-  .mobile-header,
-  .mobile-actions {
-    display: flex;
+  .filters-row {
     flex-direction: column;
+    align-items: stretch;
   }
 
-  .mobile-header-row {
-    flex-direction: row;
+  .filters-row > div {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-input {
+    width: 100%;
   }
 
   .incomplete-section,
@@ -1041,32 +967,18 @@ const formRules = {
     padding: 10px 12px;
   }
 
-  .task-card-info {
-    flex: 1;
-    min-width: 0;
-  }
-
   .priority-tag {
-    padding: 2px 6px;
+    padding: 1px 6px;
     font-size: 11px;
   }
 
-  .section-label {
-    flex-wrap: wrap;
-    gap: 8px;
+  .more-menu {
+    min-width: 90px;
   }
 
-  .completed-label-left,
-  .completed-label-right {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-}
-
-@media (min-width: 768px) {
-  .mobile-header,
-  .mobile-actions {
-    display: none !important;
+  .more-menu-item {
+    padding: 6px 10px;
+    font-size: 12px;
   }
 }
 </style>
