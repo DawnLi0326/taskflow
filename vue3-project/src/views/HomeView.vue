@@ -197,7 +197,7 @@ const priorityLabelMap = { high: '高', medium: '中', low: '低' }
         <h3 class="card-title">
           <el-icon><Odometer /></el-icon> 今日任务进度
         </h3>
-        <div class="progress-ring-wrap">
+        <div class="progress-content">
           <div class="progress-ring-container">
             <svg viewBox="0 0 120 120" class="ring-svg">
               <circle
@@ -218,17 +218,16 @@ const priorityLabelMap = { high: '高', medium: '中', low: '低' }
                 style="transition: stroke-dashoffset 0.8s ease"
               />
             </svg>
-            <div class="ring-center">
-              <span class="ring-value">{{ todayProgress }}%</span>
-              <span class="ring-sub">完成率</span>
-            </div>
           </div>
           <div class="today-stats">
+            <div class="today-stat">
+              <span class="ts-num">{{ todayProgress }}%</span>
+              <span class="ts-label">完成率</span>
+            </div>
             <div class="today-stat">
               <span class="ts-num">{{ taskStore.todayDueTasks.filter(t => t.completed).length }}</span>
               <span class="ts-label">已完成</span>
             </div>
-            <div class="today-stat-divider"></div>
             <div class="today-stat">
               <span class="ts-num">{{ taskStore.todayDueTasks.filter(t => !t.completed).length }}</span>
               <span class="ts-label">未完成</span>
@@ -525,8 +524,9 @@ const priorityLabelMap = { high: '高', medium: '中', low: '低' }
 /* Today Progress */
 .today-progress-card {}
 
-.progress-ring-wrap {
+.progress-content {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 24px;
 }
@@ -565,8 +565,8 @@ const priorityLabelMap = { high: '高', medium: '中', low: '低' }
 
 .today-stats {
   display: flex;
-  align-items: center;
-  gap: 20px;
+  justify-content: space-between;
+  width: 100%;
 }
 
 .today-stat {
@@ -574,6 +574,7 @@ const priorityLabelMap = { high: '高', medium: '中', low: '低' }
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  flex: 1;
 }
 
 .ts-num {
@@ -585,12 +586,6 @@ const priorityLabelMap = { high: '高', medium: '中', low: '低' }
 .ts-label {
   font-size: 12px;
   color: var(--color-text-muted);
-}
-
-.today-stat-divider {
-  width: 1px;
-  height: 40px;
-  background: var(--color-border);
 }
 
 .empty-hint {
