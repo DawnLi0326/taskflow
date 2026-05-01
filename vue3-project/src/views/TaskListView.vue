@@ -841,6 +841,17 @@ const formRules = {
   gap: 4px;
 }
 
+.desktop-actions {
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--transition-fast);
+}
+
+.task-card:hover .desktop-actions {
+  opacity: 1;
+  visibility: visible;
+}
+
 .mobile-menu-container {
   position: relative;
   display: none;
@@ -853,15 +864,15 @@ const formRules = {
 
 .mobile-menu {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 4px);
   right: 0;
-  margin-top: 4px;
   background: #ffffff;
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   border: 1px solid var(--color-border);
   min-width: 100px;
-  z-index: 100;
+  z-index: 1000;
+  overflow: hidden;
 }
 
 .mobile-menu-item {
