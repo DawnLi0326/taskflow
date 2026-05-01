@@ -31,6 +31,17 @@ function isOverdue(task, today) {
   return !task.completed && task.dueDate && task.dueDate < today
 }
 
+// 防抖函数
+function debounce(fn, delay = 500) {
+  let timer = null
+  return function (...args) {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => {
+      fn.apply(this, args)
+    }, delay)
+  }
+}
+
 // ========== 4. 本地存储操作函数 ==========
 
 function saveToLocalStorage(key, data) {
@@ -59,6 +70,8 @@ function loadFromLocalStorage(key) {
 // ========== 5. Pinia Store 定义 ==========
 export const useTaskStore = defineStore('tasks', () => {
   const tasks = ref([])
+  const isSyncing = ref(false)
+  const lastSyncTime = ref(null)
 
   function persist() {
     saveToLocalStorage(STORAGE_KEY, tasks.value)
@@ -67,46 +80,87 @@ export const useTaskStore = defineStore('tasks', () => {
   // ========== 云端同步方法 ==========
 
   async function fetchFromCloud() {
+    if (isSyncing.value) return
+    
     try {
-      const res = await fetch(API_PROXY_URL)
+      isSyncing.value = true
+      const startTime = Date.now()
+      const res = await fetch(API_PROXY_URL, {
+        method: 'GET',
+        cache: 'no-cache',
+      })
+      
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      
       const data = await res.json()
-      let cloudTasks = data.tasks || (Array.isArray(data) ? data : [])
-      if (Array.isArray(cloudTasks)) {
-        tasks.value = cloudTasks.map(task => ({
+      const cloudTasks = data.tasks || (Array.isArray(data) ? data : [])
+      
+      if (Array.isArray(cloudTasks) && cloudTasks.length > 0) {
+        const updatedTasks = cloudTasks.map(task => ({
           notes: '',
           order: 0,
           ...task,
           completed: !!task.completed,
         }))
-        persist()
-        console.log('✅ 云端数据已同步到本地')
+        
+        // 只在云端数据更新时才同步
+        const hasChanges = JSON.stringify(updatedTasks) !== JSON.stringify(tasks.value)
+        if (hasChanges) {
+          tasks.value = updatedTasks
+          persist()
+          console.log('✅ 云端数据已同步到本地')
+        }
       }
+      
+      lastSyncTime.value = Date.now()
+      console.log(`⏱️ 云端同步耗时: ${Date.now() - startTime}ms`)
     } catch (error) {
       console.error('❌ 从云端拉取数据失败:', error)
+    } finally {
+      isSyncing.value = false
     }
   }
 
-  async function saveToCloud() {
+  // 带防抖的云端保存函数
+  const debouncedSaveToCloud = debounce(async function () {
+    if (isSyncing.value) return
+    
     try {
+      isSyncing.value = true
+      const startTime = Date.now()
       const res = await fetch(API_PROXY_URL, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tasks: tasks.value }),
       })
+      
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      console.log('✅ 数据已同步到云端')
+      
+      lastSyncTime.value = Date.now()
+      console.log(`✅ 数据已同步到云端 (耗时: ${Date.now() - startTime}ms)`)
     } catch (error) {
       console.error('❌ 同步到云端失败:', error)
+    } finally {
+      isSyncing.value = false
     }
+  }, 1000)
+
+  function saveToCloud() {
+    debouncedSaveToCloud()
   }
 
   async function initTasks() {
-    await fetchFromCloud()
-    if (!tasks.value.length) {
-      tasks.value = loadFromLocalStorage(STORAGE_KEY)
-      console.log('ℹ️ 使用本地存储数据')
+    // 先快速加载本地数据，让界面立即显示
+    const localTasks = loadFromLocalStorage(STORAGE_KEY)
+    if (localTasks.length > 0) {
+      tasks.value = localTasks
+      console.log('ℹ️ 已加载本地存储数据')
     }
+    
+    // 然后后台异步同步云端数据
+    setTimeout(() => {
+      fetchFromCloud()
+    }, 300)
   }
 
   // ========== 5.1 计算属性 ==========
@@ -259,6 +313,8 @@ export const useTaskStore = defineStore('tasks', () => {
   // ========== 5.3 对外暴露 ==========
   return {
     tasks,
+    isSyncing,
+    lastSyncTime,
     today,
     totalCount,
     completedCount,
