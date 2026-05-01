@@ -286,7 +286,20 @@ const formRules = {
   <div class="task-list-page">
     <!-- Header and Filters -->
     <div class="header-container">
-      <div class="page-header">
+      <!-- Mobile Header -->
+      <div class="mobile-header" v-if="isMobile">
+        <div class="mobile-header-row-1">
+          <h2 class="mobile-title">任务列表</h2>
+          <el-button type="primary" @click="openAddDialog" icon="Plus" circle class="add-btn">
+          </el-button>
+        </div>
+        <div class="mobile-header-row-2">
+          <span class="mobile-task-count">共 {{ taskStore.totalCount }} 个任务</span>
+        </div>
+      </div>
+
+      <!-- Desktop Header -->
+      <div class="page-header" v-else>
         <div class="header-left">
           <h2>任务列表</h2>
           <span class="task-count">共 {{ taskStore.totalCount }} 个任务</span>
@@ -297,8 +310,8 @@ const formRules = {
       </div>
 
       <!-- Filters -->
-      <div class="filters-row">
-        <div class="filter-controls">
+      <div class="filters-container">
+        <div class="search-row">
           <el-input
             v-model="searchQuery"
             placeholder="搜索任务..."
@@ -306,6 +319,46 @@ const formRules = {
             class="search-input"
             prefix-icon="Search"
           />
+          <el-dropdown trigger="click" class="sort-dropdown" v-if="isMobile">
+            <el-button icon="Sort" class="sort-btn" circle>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item :disabled="settingsStore.sortOrder === SORT_ORDER.DUE_DATE" @click="settingsStore.sortOrder = SORT_ORDER.DUE_DATE">
+                  截止日期
+                </el-dropdown-item>
+                <el-dropdown-item :disabled="settingsStore.sortOrder === SORT_ORDER.PRIORITY" @click="settingsStore.sortOrder = SORT_ORDER.PRIORITY">
+                  优先级
+                </el-dropdown-item>
+                <el-dropdown-item :disabled="settingsStore.sortOrder === SORT_ORDER.CUSTOM" @click="settingsStore.sortOrder = SORT_ORDER.CUSTOM">
+                  自定义顺序
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+
+        <!-- Filter buttons -->
+        <div class="filter-scroll-container" v-if="isMobile">
+          <div class="filter-buttons">
+            <el-button
+              v-for="(label, key) in { all: '全部', incomplete: '未完成', completed: '已完成', overdue: '逾期' }"
+              :key="key"
+              :type="filterStatus === key ? 'primary' : 'default'"
+              :class="['filter-btn', { active: filterStatus === key }]"
+              @click="filterStatus = key"
+            >
+              {{ label }}
+              <span v-if="key === 'all'">({{ taskStore.totalCount }})</span>
+              <span v-else-if="key === 'incomplete'">({{ taskStore.incompleteCount }})</span>
+              <span v-else-if="key === 'completed'">({{ taskStore.completedCount }})</span>
+              <span v-else-if="key === 'overdue'">({{ taskStore.overdueTasks.length }})</span>
+            </el-button>
+          </div>
+        </div>
+
+        <!-- Desktop Filters -->
+        <div class="desktop-filters" v-else>
           <el-radio-group v-model="filterStatus">
             <el-radio-button value="all">全部 ({{ taskStore.totalCount }})</el-radio-button>
             <el-radio-button value="incomplete">未完成 ({{ taskStore.incompleteCount }})</el-radio-button>
@@ -339,7 +392,7 @@ const formRules = {
           ghost-class="dragging-ghost"
         >
           <template #item="{ element }">
-            <div class="task-card" :class="{ overdue: isOverdue(element) }" @mouseenter="hoveredTaskId = element.id" @mouseleave="hoveredTaskId = null">
+            <div class="task-card mobile-task-card" :class="{ overdue: isOverdue(element) }" @mouseenter="hoveredTaskId = element.id" @mouseleave="hoveredTaskId = null">
               <div
                 v-if="settingsStore.sortOrder === SORT_ORDER.CUSTOM"
                 class="drag-handle"
@@ -356,18 +409,16 @@ const formRules = {
                 <span class="task-card-title" :class="{ 'is-completed': element.completed }">
                   {{ element.title }}
                 </span>
-                <div class="task-card-meta">
-                  <el-icon size="12"><Calendar /></el-icon>
-                  <span :class="isOverdue(element) ? 'overdue-date' : ''">
-                    {{ formatDate(element.dueDate) }}
-                  </span>
-                  <el-tag type="danger" size="small" v-if="isOverdue(element)">逾期</el-tag>
-                </div>
               </div>
-              <span :class="['priority-tag', `priority-${element.priority}`]">
-                {{ PRIORITY_LABELS[element.priority] }}
-              </span>
-              <div class="task-actions" v-show="hoveredTaskId === element.id">
+              <div class="task-card-right">
+                <span class="due-date" :class="{ overdue: isOverdue(element) }">
+                  {{ formatDate(element.dueDate) }}
+                </span>
+                <span :class="['priority-tag', `priority-${element.priority}`]">
+                  {{ PRIORITY_LABELS[element.priority] }}
+                </span>
+              </div>
+              <div class="task-actions" v-show="hoveredTaskId === element.id || !isMobile">
                 <el-button link size="small" @click="goToDetail(element.id)" title="详情">
                   <el-icon size="16"><InfoFilled /></el-icon>
                 </el-button>
@@ -404,7 +455,6 @@ const formRules = {
             v-model="allSelectedForPage"
             class="select-all-check"
           >
-            全选
           </el-checkbox>
           <span>已完成任务 ({{ completedTasks.length }})</span>
         </div>
@@ -415,6 +465,7 @@ const formRules = {
             size="small"
             @click="batchDelete"
             plain
+            class="batch-delete-btn"
           >
             <el-icon><Delete /></el-icon>
             删除选中 ({{ selectedIds.length }})
@@ -425,9 +476,9 @@ const formRules = {
             size="small"
             @click="clearCompleted"
             plain
+            class="clear-btn"
           >
-            <el-icon><DeleteFilled /></el-icon>
-            清除全部已完成
+            清除全部
           </el-button>
         </div>
       </div>
@@ -436,7 +487,7 @@ const formRules = {
         <div
           v-for="task in completedTasks"
           :key="task.id"
-          class="task-card completed-card"
+          class="task-card mobile-task-card completed-card"
           @mouseenter="hoveredTaskId = task.id"
           @mouseleave="hoveredTaskId = null"
         >
@@ -452,15 +503,14 @@ const formRules = {
           />
           <div class="task-card-info">
             <span class="task-card-title is-completed">{{ task.title }}</span>
-            <div class="task-card-meta">
-              <el-icon size="12"><Calendar /></el-icon>
-              <span>{{ formatDate(task.dueDate) }}</span>
-            </div>
           </div>
-          <span :class="['priority-tag', `priority-${task.priority}`]">
-            {{ PRIORITY_LABELS[task.priority] }}
-          </span>
-          <div class="task-actions completed-actions" v-show="hoveredTaskId === task.id">
+          <div class="task-card-right">
+            <span class="due-date">{{ formatDate(task.dueDate) }}</span>
+            <span :class="['priority-tag', `priority-${task.priority}`]">
+              {{ PRIORITY_LABELS[task.priority] }}
+            </span>
+          </div>
+          <div class="task-actions completed-actions" v-show="hoveredTaskId === task.id || !isMobile">
             <el-button link size="small" @click="goToDetail(task.id)" title="详情">
               <el-icon size="16"><InfoFilled /></el-icon>
             </el-button>
@@ -561,6 +611,41 @@ const formRules = {
   margin-bottom: 24px;
 }
 
+/* Mobile Header */
+.mobile-header {
+  margin-bottom: 16px;
+}
+
+.mobile-header-row-1 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mobile-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.add-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-header-row-2 {
+  margin-top: 4px;
+}
+
+.mobile-task-count {
+  font-size: 14px;
+  color: gray;
+}
+
+/* Desktop Header */
 .page-header {
   display: flex;
   align-items: center;
@@ -584,16 +669,63 @@ const formRules = {
   color: var(--color-text-muted);
 }
 
-.filters-row {
+/* Filters Container */
+.filters-container {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 12px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  justify-content: space-between;
 }
 
-.filters-row > div {
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.sort-dropdown {
+  flex-shrink: 0;
+}
+
+.sort-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile Filter Buttons */
+.filter-scroll-container {
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+
+.filter-buttons {
+  display: inline-flex;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.filter-btn {
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.filter-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* Desktop Filters */
+.desktop-filters {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -604,10 +736,7 @@ const formRules = {
   min-width: 120px;
 }
 
-.search-input {
-  width: 240px;
-}
-
+/* Section Blocks */
 .section-block {
   margin-bottom: 24px;
   border-radius: 10px;
@@ -615,13 +744,13 @@ const formRules = {
 }
 
 .incomplete-section {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   padding: 16px;
 }
 
 .completed-section {
-  background: #f8f9fa;
+  background: var(--color-surface-secondary);
   border: 1px solid var(--color-border);
   padding: 16px;
 }
@@ -668,11 +797,12 @@ const formRules = {
   gap: 8px;
 }
 
+/* Task Cards */
 .task-card {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 12px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 10px;
@@ -681,10 +811,17 @@ const formRules = {
   position: relative;
 }
 
+/* Mobile Task Card */
+.mobile-task-card {
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid var(--color-border-light);
+  margin-bottom: 12px;
+}
+
 .task-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   border-color: var(--color-primary-light);
-  background: #f8f9fa;
 }
 
 .task-card.overdue {
@@ -703,10 +840,13 @@ const formRules = {
 .drag-handle {
   cursor: grab;
   color: var(--color-text-muted);
-  padding: 4px;
-  border-radius: 4px;
+  padding: 8px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 44px;
   transition: color var(--transition-fast);
 }
 
@@ -715,6 +855,11 @@ const formRules = {
 
 .task-checkbox {
   flex-shrink: 0;
+  min-width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .select-checkbox {
@@ -729,10 +874,9 @@ const formRules = {
 
 .task-card-title {
   display: block;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 600;
   color: var(--color-text);
-  margin-bottom: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -743,15 +887,19 @@ const formRules = {
   color: var(--color-text-muted);
 }
 
-.task-card-meta {
+.task-card-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.due-date {
   font-size: 12px;
   color: var(--color-text-muted);
 }
 
-.overdue-date {
+.due-date.overdue {
   color: var(--color-error);
   font-weight: 500;
 }
@@ -762,7 +910,9 @@ const formRules = {
   gap: 4px;
 }
 
-
+.completed-actions {
+  margin-left: auto;
+}
 
 .empty-section {
   padding: 32px 0;
@@ -775,14 +925,14 @@ const formRules = {
   border: 2px dashed var(--color-primary) !important;
 }
 
-
-
+/* Priority Tags */
 .priority-tag {
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
   color: white;
+  flex-shrink: 0;
 }
 
 .priority-high {
@@ -819,28 +969,46 @@ const formRules = {
   gap: 8px;
 }
 
+/* Responsive adjustments */
 @media (max-width: 768px) {
   .task-list-page {
     padding: 16px;
   }
 
-  .filters-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .filters-row > div {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .search-input {
-    width: 100%;
-  }
-
   .incomplete-section,
   .completed-section {
     padding: 12px;
+  }
+
+  .section-label {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .completed-label-left {
+    flex-wrap: wrap;
+  }
+
+  .completed-label-right {
+    margin-left: auto;
+  }
+
+  .clear-btn {
+    padding: 6px 12px;
+  }
+
+  .batch-delete-btn {
+    padding: 6px 12px;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-header {
+    display: none;
+  }
+
+  .filter-scroll-container {
+    display: none;
   }
 }
 </style>
