@@ -40,6 +40,7 @@ const searchQuery = ref('')
 const selectedIds = ref([])
 const isMobile = ref(window.innerWidth < 768)
 const activeMenuId = ref(null)
+const activeMenuPosition = ref({ top: 0, right: 16 })
 
 // Computed
 const today = computed(() => new Date().toISOString().split('T')[0])
@@ -276,11 +277,17 @@ function goToDetail(id) {
   router.push(`/task/${id}`)
 }
 
-function toggleMobileMenu(taskId) {
+function toggleMobileMenu(taskId, event) {
   if (activeMenuId.value === taskId) {
     activeMenuId.value = null
   } else {
     activeMenuId.value = taskId
+    const btn = event.currentTarget
+    const rect = btn.getBoundingClientRect()
+    activeMenuPosition.value = {
+      top: rect.bottom,
+      right: window.innerWidth - rect.right
+    }
   }
 }
 
@@ -400,29 +407,11 @@ const formRules = {
                   link
                   size="small"
                   class="mobile-more-btn"
-                  @click.stop="toggleMobileMenu(element.id)"
+                  @click.stop="toggleMobileMenu(element.id, $event)"
                   title="更多"
                 >
                   <el-icon size="16"><More /></el-icon>
                 </el-button>
-                <div
-                  v-if="activeMenuId === element.id"
-                  class="mobile-menu"
-                  @click.stop
-                >
-                  <div class="mobile-menu-item" @click="goToDetail(element.id); closeMobileMenu()">
-                    <el-icon size="14"><InfoFilled /></el-icon>
-                    <span>详情</span>
-                  </div>
-                  <div class="mobile-menu-item" @click="openEditDialog(element); closeMobileMenu()">
-                    <el-icon size="14"><Edit /></el-icon>
-                    <span>编辑</span>
-                  </div>
-                  <div class="mobile-menu-item mobile-menu-item-danger" @click="deleteTask(element.id, element.title); closeMobileMenu()">
-                    <el-icon size="14"><Delete /></el-icon>
-                    <span>删除</span>
-                  </div>
-                </div>
               </div>
             </div>
           </template>
@@ -526,29 +515,11 @@ const formRules = {
               link
               size="small"
               class="mobile-more-btn"
-              @click.stop="toggleMobileMenu(task.id)"
+              @click.stop="toggleMobileMenu(task.id, $event)"
               title="更多"
             >
               <el-icon size="16"><More /></el-icon>
             </el-button>
-            <div
-              v-if="activeMenuId === task.id"
-              class="mobile-menu"
-              @click.stop
-            >
-              <div class="mobile-menu-item" @click="goToDetail(task.id); closeMobileMenu()">
-                <el-icon size="14"><InfoFilled /></el-icon>
-                <span>详情</span>
-              </div>
-              <div class="mobile-menu-item" @click="openEditDialog(task); closeMobileMenu()">
-                <el-icon size="14"><Edit /></el-icon>
-                <span>编辑</span>
-              </div>
-              <div class="mobile-menu-item mobile-menu-item-danger" @click="deleteTask(task.id, task.title); closeMobileMenu()">
-                <el-icon size="14"><Delete /></el-icon>
-                <span>删除</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -556,6 +527,43 @@ const formRules = {
         <el-empty description="暂无已完成任务" :image-size="60" />
       </div>
     </div>
+
+    <!-- 移动端全局菜单 -->
+    <Teleport to="body">
+      <div
+        v-if="activeMenuId"
+        class="mobile-menu-overlay"
+        @click="closeMobileMenu"
+      >
+        <div
+          class="mobile-menu"
+          :style="{
+            top: activeMenuPosition.top + 'px',
+            right: activeMenuPosition.right + 'px'
+          }"
+          @click.stop
+        >
+          <div
+            v-for="task in taskStore.tasks"
+            :key="task.id"
+            v-show="task.id === activeMenuId"
+          >
+            <div class="mobile-menu-item" @click="goToDetail(task.id); closeMobileMenu()">
+              <el-icon size="14"><InfoFilled /></el-icon>
+              <span>详情</span>
+            </div>
+            <div class="mobile-menu-item" @click="openEditDialog(task); closeMobileMenu()">
+              <el-icon size="14"><Edit /></el-icon>
+              <span>编辑</span>
+            </div>
+            <div class="mobile-menu-item mobile-menu-item-danger" @click="deleteTask(task.id, task.title); closeMobileMenu()">
+              <el-icon size="14"><Delete /></el-icon>
+              <span>删除</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Add/Edit Dialog -->
     <el-dialog
@@ -841,20 +849,10 @@ const formRules = {
   gap: 4px;
 }
 
-.desktop-actions {
-  opacity: 0;
-  visibility: hidden;
-  transition: all var(--transition-fast);
-}
-
-.task-card:hover .desktop-actions {
-  opacity: 1;
-  visibility: visible;
-}
-
 .mobile-menu-container {
   position: relative;
   display: none;
+  z-index: 10;
 }
 
 .mobile-more-btn {
@@ -862,17 +860,27 @@ const formRules = {
   color: var(--color-text-muted);
 }
 
-.mobile-menu {
-  position: absolute;
-  top: calc(100% + 4px);
+.mobile-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
   right: 0;
+  bottom: 0;
+  z-index: 9998;
+  background: transparent;
+}
+
+.mobile-menu {
+  position: fixed;
+  top: 0;
+  right: 16px;
+  margin-top: 4px;
   background: #ffffff;
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   border: 1px solid var(--color-border);
   min-width: 100px;
-  z-index: 1000;
-  overflow: hidden;
+  z-index: 9999;
 }
 
 .mobile-menu-item {
