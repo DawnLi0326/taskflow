@@ -661,7 +661,11 @@ const formRules = {
 .header-left h2 {
   font-size: 22px;
   font-weight: 700;
-  color: var(--color-text);
+}
+
+.task-count {
+  font-size: 13px;
+  color: var(--color-text-muted);
 }
 
 .filters-row {
@@ -682,31 +686,10 @@ const formRules = {
 
 .sort-select {
   min-width: 120px;
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
-  transition: all var(--transition-fast);
-}
-
-.sort-select:hover {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-light);
 }
 
 .search-input {
   width: 240px;
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
-  transition: all var(--transition-fast);
-}
-
-.search-input:hover {
-  border-color: var(--color-primary);
-}
-
-.search-input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-light);
-  outline: none;
 }
 
 .section-block {
@@ -1003,85 +986,6 @@ const formRules = {
 
   .mobile-menu-container {
     display: block;
-  }
-}
-
-@media (max-width: 375px) {
-  .task-list-page {
-    padding: 12px;
-  }
-
-  .page-header {
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-    margin-bottom: 12px;
-  }
-
-  .header-left h2 {
-    font-size: 18px;
-    font-weight: 600;
-  }
-
-  .page-header .el-button {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .filters-row {
-    gap: 8px;
-    margin-bottom: 16px;
-  }
-
-  .sort-select {
-    min-width: 100%;
-  }
-
-  .search-input {
-    width: 100%;
-  }
-
-  .el-radio-group {
-    display: flex;
-    flex-wrap: wrap;
-  }
-
-  .el-radio-button {
-    flex: 1;
-    min-width: calc(50% - 4px);
-    margin-bottom: 4px;
-  }
-
-  .incomplete-section,
-  .completed-section {
-    padding: 8px;
-  }
-
-  .section-label {
-    padding: 0 4px 6px;
-    margin-bottom: 8px;
-  }
-
-  .section-label span {
-    font-size: 12px;
-  }
-
-  .task-card {
-    padding: 10px 12px;
-    gap: 8px;
-  }
-
-  .task-card-title {
-    font-size: 13px;
-  }
-
-  .task-card-meta {
-    font-size: 11px;
-  }
-
-  .priority-tag {
-    padding: 2px 6px;
-    font-size: 11px;
   }
 }
 </style>

@@ -197,37 +197,41 @@ const priorityLabelMap = { high: '高', medium: '中', low: '低' }
         <h3 class="card-title">
           <el-icon><Odometer /></el-icon> 今日任务进度
         </h3>
-        <div class="progress-content">
-          <div class="progress-ring-container">
-            <svg viewBox="0 0 120 120" class="ring-svg">
-              <circle
-                cx="60" cy="60" r="50"
-                fill="none"
-                stroke="var(--color-border)"
-                stroke-width="10"
-              />
-              <circle
-                cx="60" cy="60" r="50"
-                fill="none"
-                :stroke="todayProgress >= 100 ? '#10b981' : '#2563eb'"
-                stroke-width="10"
-                stroke-linecap="round"
-                stroke-dasharray="314.16"
-                :stroke-dashoffset="314.16 * (1 - todayProgress / 100)"
-                transform="rotate(-90 60 60)"
-                style="transition: stroke-dashoffset 0.8s ease"
-              />
-            </svg>
-          </div>
-          <div class="today-stats">
-            <div class="today-stat">
-              <span class="ts-num">{{ todayProgress }}%</span>
-              <span class="ts-label">完成率</span>
+        <div class="progress-ring-wrap">
+          <div class="progress-item">
+            <div class="progress-ring-container">
+              <svg viewBox="0 0 120 120" class="ring-svg">
+                <circle
+                  cx="60" cy="60" r="50"
+                  fill="none"
+                  stroke="var(--color-border)"
+                  stroke-width="10"
+                />
+                <circle
+                  cx="60" cy="60" r="50"
+                  fill="none"
+                  :stroke="todayProgress >= 100 ? '#10b981' : '#2563eb'"
+                  stroke-width="10"
+                  stroke-linecap="round"
+                  stroke-dasharray="314.16"
+                  :stroke-dashoffset="314.16 * (1 - todayProgress / 100)"
+                  transform="rotate(-90 60 60)"
+                  style="transition: stroke-dashoffset 0.8s ease"
+                />
+              </svg>
+              <div class="ring-center">
+                <span class="ring-value">{{ todayProgress }}%</span>
+                <span class="ring-sub">完成率</span>
+              </div>
             </div>
+          </div>
+          <div class="progress-item">
             <div class="today-stat">
               <span class="ts-num">{{ taskStore.todayDueTasks.filter(t => t.completed).length }}</span>
               <span class="ts-label">已完成</span>
             </div>
+          </div>
+          <div class="progress-item">
             <div class="today-stat">
               <span class="ts-num">{{ taskStore.todayDueTasks.filter(t => !t.completed).length }}</span>
               <span class="ts-label">未完成</span>
@@ -524,18 +528,25 @@ const priorityLabelMap = { high: '高', medium: '中', low: '低' }
 /* Today Progress */
 .today-progress-card {}
 
-.progress-content {
+.progress-ring-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 16px;
+}
+
+.progress-item {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  justify-content: center;
 }
 
 .progress-ring-container {
   position: relative;
-  width: 120px;
-  height: 120px;
-  flex-shrink: 0;
+  width: 100px;
+  height: 100px;
 }
 
 .ring-svg {
@@ -563,18 +574,11 @@ const priorityLabelMap = { high: '高', medium: '中', low: '低' }
   color: var(--color-text-muted);
 }
 
-.today-stats {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-}
-
 .today-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  flex: 1;
 }
 
 .ts-num {
