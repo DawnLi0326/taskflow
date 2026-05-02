@@ -331,10 +331,6 @@ const formRules = {
             <el-radio-button value="completed">已完成 ({{ taskStore.completedCount }})</el-radio-button>
             <el-radio-button value="overdue">逾期 ({{ taskStore.overdueTasks.length }})</el-radio-button>
           </el-radio-group>
-          <div class="sort-label">
-            <el-icon size="14"><Sort /></el-icon>
-            <span>排序</span>
-          </div>
           <el-select v-model="settingsStore.sortOrder" placeholder="排序方式" size="small" class="sort-select">
             <el-option value="dueDate" label="按截止日期" />
             <el-option value="priority" label="按优先级" />
@@ -696,15 +692,6 @@ const formRules = {
   width: 240px;
 }
 
-.sort-label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--color-text-secondary);
-  margin-right: 4px;
-}
-
 .section-block {
   margin-bottom: 24px;
   border-radius: 10px;
@@ -885,9 +872,9 @@ const formRules = {
   top: 0;
   right: 16px;
   margin-top: 4px;
-  background: #ffffff;
+  background: var(--color-bg-page);
   border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   border: 1px solid var(--color-border);
   min-width: 100px;
   z-index: 9999;
@@ -899,13 +886,13 @@ const formRules = {
   gap: 8px;
   padding: 10px 16px;
   font-size: 13px;
-  color: var(--color-text);
+  color: var(--color-text-primary);
   cursor: pointer;
   transition: background var(--transition-fast);
 }
 
 .mobile-menu-item:hover {
-  background: var(--color-surface);
+  background: var(--color-bg-hover);
 }
 
 .mobile-menu-item-danger {
@@ -999,10 +986,6 @@ const formRules = {
 
   .mobile-menu-container {
     display: block;
-  }
-
-  .sort-label {
-    display: none;
   }
 }
 </style>

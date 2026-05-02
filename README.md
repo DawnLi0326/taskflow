@@ -24,7 +24,8 @@
 ## 🔗 链接
 
 - GitHub 仓库：[DawnLi0326/taskflow](https://github.com/DawnLi0326/taskflow)
-- 在线预览：[[taskflow1.pages.dev](https://7bf10e68.taskflow1.pages.dev)]
+- 在线预览：[cbda942d.taskflow1.pages.dev](https://cbda942d.taskflow1.pages.dev)
+
 ## 🖥 本地运行
 
 ```bash
