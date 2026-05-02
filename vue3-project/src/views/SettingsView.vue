@@ -927,27 +927,33 @@ async function clearAllTasks() {
     justify-content: space-between;
     padding: 12px 16px 16px;
     border-top: 1px solid var(--color-border-light);
+    gap: 16px;
   }
 
   .import-mode-label {
     font-size: 13px;
     color: var(--color-text-muted);
+    flex-shrink: 0;
   }
 
   .import-radio-group {
     display: flex;
-    gap: 16px;
+    gap: 12px;
+    flex: 1;
+    justify-content: flex-end;
   }
 
   .import-radio {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border-radius: 8px;
+    gap: 5px;
+    padding: 8px 16px;
+    border-radius: 20px;
     font-size: 13px;
     background: var(--color-surface-2);
     border-color: var(--color-border);
+    min-width: 70px;
+    justify-content: center;
   }
 
   .import-radio.is-checked {
