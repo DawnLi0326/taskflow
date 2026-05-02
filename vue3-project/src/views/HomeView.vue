@@ -7,15 +7,13 @@ import {
   Plus, TrendCharts, DataAnalysis, Odometer,
   Warning, Clock, Calendar, CircleCheck, List, Check
 } from '@element-plus/icons-vue'
+import { PRIORITY_LABELS } from '../constants'
+import { getFullTodayStr, formatDateShort, daysBetween } from '../utils/date'
 
 const router = useRouter()
 const taskStore = useTaskStore()
 
-const today = computed(() => {
-  const d = new Date()
-  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${weekdays[d.getDay()]}`
-})
+const today = computed(() => getFullTodayStr())
 
 const stats = computed(() => [
   {
@@ -61,12 +59,10 @@ const overdueTasks = computed(() => taskStore.overdueTasks)
 const recentTasks = computed(() => taskStore.recentIncompleteTasks)
 const upcomingTasks = computed(() => taskStore.upcomingTasks)
 
-function overduedays(dueDate) {
-  const due = new Date(dueDate)
+function getOverdueDays(dueDate) {
   const now = new Date()
   now.setHours(0, 0, 0, 0)
-  const diff = Math.floor((now.getTime() - due.getTime()) / 86400000)
-  return diff
+  return daysBetween(dueDate, now)
 }
 
 function completeTask(id) {
@@ -81,15 +77,6 @@ function goToTasks(filter) {
 function goToStatistics() {
   router.push('/statistics')
 }
-
-function formatDate(date) {
-  const d = new Date(date)
-  const m = d.getMonth() + 1
-  const day = d.getDate()
-  return `${m}月${day}日`
-}
-
-const priorityLabelMap = { high: '高', medium: '中', low: '低' }
 </script>
 
 <template>
@@ -260,9 +247,9 @@ const priorityLabelMap = { high: '高', medium: '中', low: '低' }
           <div class="overdue-info">
             <span class="overdue-title-text">{{ task.title }}</span>
             <div class="overdue-meta">
-              <el-tag type="danger" size="small" round>逾期 {{ overduedays(task.dueDate) }} 天</el-tag>
+              <el-tag type="danger" size="small" round>逾期 {{ getOverdueDays(task.dueDate) }} 天</el-tag>
               <span :class="['priority-tag', `priority-${task.priority}`]">
-                {{ priorityLabelMap[task.priority] }}优先级
+                {{ PRIORITY_LABELS[task.priority] }}优先级
               </span>
             </div>
           </div>
@@ -295,10 +282,10 @@ const priorityLabelMap = { high: '高', medium: '中', low: '低' }
           >
             <div class="task-item-info">
               <span class="task-item-title">{{ task.title }}</span>
-              <span class="task-item-date">{{ formatDate(task.dueDate) }}</span>
+              <span class="task-item-date">{{ formatDateShort(task.dueDate) }}</span>
             </div>
             <span :class="['priority-tag', `priority-${task.priority}`]">
-              {{ priorityLabelMap[task.priority] }}
+              {{ PRIORITY_LABELS[task.priority] }}
             </span>
           </div>
         </div>
@@ -325,10 +312,10 @@ const priorityLabelMap = { high: '高', medium: '中', low: '低' }
           >
             <div class="task-item-info">
               <span class="task-item-title">{{ task.title }}</span>
-              <span class="task-item-date">{{ formatDate(task.dueDate) }}</span>
+              <span class="task-item-date">{{ formatDateShort(task.dueDate) }}</span>
             </div>
             <span :class="['priority-tag', `priority-${task.priority}`]">
-              {{ priorityLabelMap[task.priority] }}
+              {{ PRIORITY_LABELS[task.priority] }}
             </span>
           </div>
         </div>

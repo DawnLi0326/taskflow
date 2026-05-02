@@ -6,22 +6,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { InfoFilled, Plus, Sort, Rank, Calendar, Edit, Delete, DeleteFilled, More } from '@element-plus/icons-vue'
 import { useTaskStore } from '../stores/task'
 import { useSettingsStore } from '../stores/settings'
-
-// Constants
-const FILTER_STATUS = {
-  ALL: 'all',
-  COMPLETED: 'completed',
-  INCOMPLETE: 'incomplete',
-  OVERDUE: 'overdue'
-}
-
-const SORT_ORDER = {
-  DUE_DATE: 'dueDate',
-  PRIORITY: 'priority',
-  CUSTOM: 'custom'
-}
-
-const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' }
+import { FILTER_STATUS, SORT_ORDER, PRIORITY_LABELS } from '../constants'
+import { formatDate, getTodayStr } from '../utils/date'
 
 // Store and route
 const route = useRoute()
@@ -43,7 +29,7 @@ const activeMenuId = ref(null)
 const activeMenuPosition = ref({ top: 0, right: 16 })
 
 // Computed
-const today = computed(() => new Date().toISOString().split('T')[0])
+const today = computed(() => getTodayStr())
 
 const sortedTasks = computed(() => {
   const all = [...taskStore.tasks]
@@ -266,11 +252,6 @@ async function toggleCompleteFromCompleted(task) {
 
 function isOverdue(task) {
   return !task.completed && task.dueDate < today.value
-}
-
-function formatDate(date) {
-  const d = new Date(date)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function goToDetail(id) {

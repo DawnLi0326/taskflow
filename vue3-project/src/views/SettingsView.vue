@@ -11,17 +11,7 @@ import {
   ElIcon,
   ElDivider
 } from 'element-plus'
-import {
-  Monitor,
-  Sort,
-  DataAnalysis,
-  Download,
-  Upload,
-  Plus,
-  RefreshRight,
-  Warning,
-  Delete,
-  InfoFilled,
+import {Monitor, Sort, DataAnalysis, Download, Upload, Plus, RefreshRight, Warning, Delete, InfoFilled,
   Calendar,
   Flag,
   Rank

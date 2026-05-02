@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSettingsStore } from '../stores/settings'
 import { useTaskStore } from '../stores/task'
+import { Checked, Expand, Fold, Menu, Odometer, List, TrendCharts, Setting, Sunny, Moon } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,10 +14,10 @@ const collapsed = ref(false)
 const mobileMenuOpen = ref(false)
 
 const menuItems = [
-  { name: 'Dashboard', path: '/dashboard', icon: 'Odometer', label: '仪表盘' },
-  { name: 'TaskList', path: '/tasks', icon: 'List', label: '任务列表' },
-  { name: 'Statistics', path: '/statistics', icon: 'TrendCharts', label: '数据统计' },
-  { name: 'Settings', path: '/settings', icon: 'Setting', label: '设置' },
+  { name: 'Dashboard', path: '/dashboard', icon: Odometer, label: '仪表盘' },
+  { name: 'TaskList', path: '/tasks', icon: List, label: '任务列表' },
+  { name: 'Statistics', path: '/statistics', icon: TrendCharts, label: '数据统计' },
+  { name: 'Settings', path: '/settings', icon: Setting, label: '设置' },
 ]
 
 const activeRoute = computed(() => route.path)
@@ -58,7 +59,7 @@ function toggleSidebar() {
         </div>
         <button class="collapse-btn" @click="toggleSidebar" title="折叠侧边栏">
           <el-icon size="16">
-            <component :is="collapsed ? 'Expand' : 'Fold'" />
+            <component :is="collapsed ? Expand : Fold" />
           </el-icon>
         </button>
       </div>
@@ -94,7 +95,7 @@ function toggleSidebar() {
           @click="settingsStore.toggleDarkMode()"
         >
           <el-icon size="16">
-            <component :is="settingsStore.darkMode ? 'Sunny' : 'Moon'" />
+            <component :is="settingsStore.darkMode ? Sunny : Moon" />
           </el-icon>
           <Transition name="fade">
             <span v-if="!collapsed">{{ settingsStore.darkMode ? '浅色模式' : '深色模式' }}</span>
@@ -113,7 +114,7 @@ function toggleSidebar() {
         <span class="mobile-title">任务中心</span>
         <button class="theme-btn-mobile" @click="settingsStore.toggleDarkMode()">
           <el-icon size="18">
-            <component :is="settingsStore.darkMode ? 'Sunny' : 'Moon'" />
+            <component :is="settingsStore.darkMode ? Sunny : Moon" />
           </el-icon>
         </button>
       </header>
