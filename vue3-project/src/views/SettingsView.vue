@@ -317,55 +317,62 @@ async function clearAllTasks() {
       </el-card>
 
       <!-- 数据管理卡片 -->
-      <el-card class="mobile-card">
+      <el-card class="mobile-card mobile-data-card">
         <div class="mobile-card-title">数据管理</div>
         
         <!-- 导出区域 -->
-        <div class="mobile-data-section">
-          <div class="mobile-data-info">
-            <span class="mobile-data-label">导出任务数据</span>
-            <span class="mobile-data-desc">将所有任务保存为 JSON 文件</span>
+        <div class="mobile-data-block">
+          <div class="mobile-data-header">
+            <div class="mobile-data-info">
+              <span class="mobile-data-label">导出任务数据</span>
+              <span class="mobile-data-desc">将所有任务保存为 JSON 文件，可用于备份或迁移</span>
+            </div>
+            <el-button type="primary" @click="exportTasks" class="mobile-export-btn">
+              <el-icon><Download /></el-icon>
+              导出 JSON
+            </el-button>
           </div>
-          <el-button type="primary" @click="exportTasks" plain class="mobile-btn">
-            <el-icon><Download /></el-icon>
-            导出 JSON
-          </el-button>
-        </div>
-
-        <!-- 统计数据 -->
-        <div class="mobile-stats">
-          <el-tag class="mobile-stat-tag">
-            <span class="stat-num">{{ taskStore.totalCount }}</span>
-            <span class="stat-label">总任务</span>
-          </el-tag>
-          <el-tag class="mobile-stat-tag success">
-            <span class="stat-num">{{ taskStore.completedCount }}</span>
-            <span class="stat-label">已完成</span>
-          </el-tag>
-          <el-tag class="mobile-stat-tag warning">
-            <span class="stat-num">{{ taskStore.incompleteCount }}</span>
-            <span class="stat-label">未完成</span>
-          </el-tag>
+          <div class="mobile-data-stats">
+            <span class="mobile-stat-item">
+              <span class="stat-num">{{ taskStore.totalCount }}</span>
+              <span class="stat-text">个任务</span>
+            </span>
+            <span class="mobile-stat-item completed">
+              <span class="stat-num">{{ taskStore.completedCount }}</span>
+              <span class="stat-text">已完成</span>
+            </span>
+            <span class="mobile-stat-item pending">
+              <span class="stat-num">{{ taskStore.incompleteCount }}</span>
+              <span class="stat-text">未完成</span>
+            </span>
+          </div>
         </div>
 
         <!-- 导入区域 -->
-        <div class="mobile-data-section">
-          <div class="mobile-data-info">
-            <span class="mobile-data-label">导入任务数据</span>
-            <span class="mobile-data-desc">从 JSON 文件还原任务数据</span>
+        <div class="mobile-data-block">
+          <div class="mobile-data-header">
+            <div class="mobile-data-info">
+              <span class="mobile-data-label">导入任务数据</span>
+              <span class="mobile-data-desc">从 JSON 文件还原任务数据</span>
+            </div>
+            <el-button @click="triggerImport" class="mobile-import-btn">
+              <el-icon><Upload /></el-icon>
+              选择文件
+            </el-button>
           </div>
-          <el-button @click="triggerImport" class="mobile-btn">
-            <el-icon><Upload /></el-icon>
-            选择文件
-          </el-button>
-        </div>
-
-        <!-- 导入模式 -->
-        <div class="mobile-import-mode">
-          <el-radio-group v-model="importMode">
-            <el-radio value="merge" border>合并</el-radio>
-            <el-radio value="replace" border>替换</el-radio>
-          </el-radio-group>
+          <div class="mobile-import-mode">
+            <span class="import-mode-label">导入模式：</span>
+            <el-radio-group v-model="importMode">
+              <el-radio value="merge" class="import-radio">
+                <el-icon><Plus /></el-icon>
+                <span>合并（保留现有）</span>
+              </el-radio>
+              <el-radio value="replace" class="import-radio">
+                <el-icon><RefreshRight /></el-icon>
+                <span>替换（覆盖所有）</span>
+              </el-radio>
+            </el-radio-group>
+          </div>
         </div>
 
         <input
@@ -699,17 +706,26 @@ async function clearAllTasks() {
     flex-shrink: 0;
   }
 
-  .mobile-data-section {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--color-border-light);
-    gap: 12px;
+  .mobile-data-card {
+    padding: 16px;
   }
 
-  .mobile-data-section:last-of-type {
-    border-bottom: none;
+  .mobile-data-block {
+    background: var(--color-surface-2);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .mobile-data-block + .mobile-data-block {
+    margin-top: 12px;
+  }
+
+  .mobile-data-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
   }
 
   .mobile-data-info {
@@ -719,9 +735,9 @@ async function clearAllTasks() {
   .mobile-data-label {
     display: block;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--color-text);
-    margin-bottom: 3px;
+    margin-bottom: 4px;
   }
 
   .mobile-data-desc {
@@ -730,38 +746,90 @@ async function clearAllTasks() {
     color: var(--color-text-muted);
   }
 
-  .mobile-btn {
+  .mobile-export-btn {
     flex-shrink: 0;
-  }
-
-  .mobile-stats {
-    display: flex;
-    gap: 10px;
-    padding: 16px 0;
-    justify-content: center;
-    border-bottom: 1px solid var(--color-border-light);
-  }
-
-  .mobile-stat-tag {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 10px 16px;
-    background: var(--color-surface-2);
-    border-color: var(--color-border);
+    background: var(--color-primary);
+    color: #fff;
+    border: none;
     border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
-  .mobile-stat-tag.success {
-    background: rgba(34, 197, 94, 0.1);
-    border-color: rgba(34, 197, 94, 0.3);
+  .mobile-import-btn {
+    flex-shrink: 0;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .mobile-data-stats {
+    display: flex;
+    gap: 24px;
+  }
+
+  .mobile-stat-item {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+  }
+
+  .mobile-stat-item .stat-num {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+  }
+
+  .mobile-stat-item.completed .stat-num {
     color: var(--color-success);
   }
 
-  .mobile-stat-tag.warning {
-    background: rgba(234, 179, 8, 0.1);
-    border-color: rgba(234, 179, 8, 0.3);
+  .mobile-stat-item.pending .stat-num {
     color: var(--color-warning);
+  }
+
+  .mobile-stat-item .stat-text {
+    font-size: 13px;
+  }
+
+  .mobile-import-mode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .import-mode-label {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+  }
+
+  .import-radio {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .import-radio.is-checked {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
   }
 
   .stat-num {
