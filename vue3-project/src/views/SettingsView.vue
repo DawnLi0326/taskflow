@@ -278,11 +278,11 @@ async function clearAllTasks() {
 
       <!-- 外观卡片 -->
       <el-card class="mobile-card">
-        <div class="mobile-card-content">
-          <div class="mobile-setting-row">
-            <div class="mobile-setting-info">
-              <span class="mobile-setting-label">深色主题</span>
-              <span class="mobile-setting-desc">切换深色/浅色显示模式</span>
+        <div class="mobile-card-body">
+          <div class="mobile-row">
+            <div class="mobile-label">
+              <span class="mobile-label-title">深色主题</span>
+              <span class="mobile-label-desc">切换深色/浅色显示模式</span>
             </div>
             <el-switch
               :model-value="settingsStore.darkMode"
@@ -296,11 +296,11 @@ async function clearAllTasks() {
 
       <!-- 排序方式卡片 -->
       <el-card class="mobile-card">
-        <div class="mobile-card-content">
-          <div class="mobile-setting-row">
-            <div class="mobile-setting-info">
-              <span class="mobile-setting-label">默认排序</span>
-              <span class="mobile-setting-desc">影响任务列表的默认显示顺序</span>
+        <div class="mobile-card-body">
+          <div class="mobile-row">
+            <div class="mobile-label">
+              <span class="mobile-label-title">默认排序</span>
+              <span class="mobile-label-desc">影响任务列表的默认显示顺序</span>
             </div>
             <el-select
               :model-value="settingsStore.sortOrder"
@@ -317,104 +317,99 @@ async function clearAllTasks() {
       </el-card>
 
       <!-- 数据管理卡片 -->
-      <el-card class="mobile-card mobile-data-card">
-        <div class="mobile-card-title">数据管理</div>
+      <el-card class="mobile-card">
+        <div class="mobile-card-header">数据管理</div>
         
         <!-- 导出区域 -->
-        <div class="mobile-data-block">
-          <div class="mobile-data-header">
-            <div class="mobile-data-info">
-              <span class="mobile-data-label">导出任务数据</span>
-              <span class="mobile-data-desc">将所有任务保存为 JSON 文件，可用于备份或迁移</span>
+        <div class="mobile-card-body">
+          <div class="mobile-row">
+            <div class="mobile-label">
+              <span class="mobile-label-title">导出任务数据</span>
+              <span class="mobile-label-desc">将所有任务保存为 JSON 文件</span>
             </div>
-            <el-button type="primary" @click="exportTasks" class="mobile-export-btn">
+            <el-button type="primary" @click="exportTasks" plain>
               <el-icon><Download /></el-icon>
               导出 JSON
             </el-button>
           </div>
-          <div class="mobile-data-stats">
-            <span class="mobile-stat-item">
-              <span class="stat-num">{{ taskStore.totalCount }}</span>
-              <span class="stat-text">个任务</span>
-            </span>
-            <span class="mobile-stat-item completed">
-              <span class="stat-num">{{ taskStore.completedCount }}</span>
-              <span class="stat-text">已完成</span>
-            </span>
-            <span class="mobile-stat-item pending">
-              <span class="stat-num">{{ taskStore.incompleteCount }}</span>
-              <span class="stat-text">未完成</span>
-            </span>
-          </div>
-        </div>
 
-        <!-- 导入区域 -->
-        <div class="mobile-data-block">
-          <div class="mobile-data-header">
-            <div class="mobile-data-info">
-              <span class="mobile-data-label">导入任务数据</span>
-              <span class="mobile-data-desc">从 JSON 文件还原任务数据</span>
+          <!-- 统计数据 -->
+          <div class="mobile-stats-row">
+            <el-tag class="mobile-stat-tag">
+              <span class="stat-num">{{ taskStore.totalCount }}</span>
+              <span class="stat-label">总任务</span>
+            </el-tag>
+            <el-tag class="mobile-stat-tag mobile-stat-success">
+              <span class="stat-num">{{ taskStore.completedCount }}</span>
+              <span class="stat-label">已完成</span>
+            </el-tag>
+            <el-tag class="mobile-stat-tag mobile-stat-warning">
+              <span class="stat-num">{{ taskStore.incompleteCount }}</span>
+              <span class="stat-label">未完成</span>
+            </el-tag>
+          </div>
+
+          <!-- 导入区域 -->
+          <div class="mobile-row">
+            <div class="mobile-label">
+              <span class="mobile-label-title">导入任务数据</span>
+              <span class="mobile-label-desc">从 JSON 文件还原任务数据</span>
             </div>
-            <el-button @click="triggerImport" class="mobile-import-btn">
+            <el-button type="primary" @click="triggerImport" plain>
               <el-icon><Upload /></el-icon>
               选择文件
             </el-button>
           </div>
+
+          <!-- 导入模式 -->
           <div class="mobile-import-mode">
-            <span class="import-mode-label">导入模式：</span>
             <el-radio-group v-model="importMode">
-              <el-radio value="merge" class="import-radio">
-                <el-icon><Plus /></el-icon>
-                <span>合并（保留现有）</span>
-              </el-radio>
-              <el-radio value="replace" class="import-radio">
-                <el-icon><RefreshRight /></el-icon>
-                <span>替换（覆盖所有）</span>
-              </el-radio>
+              <el-radio value="merge" border>合并（保留现有）</el-radio>
+              <el-radio value="replace" border>替换（覆盖所有）</el-radio>
             </el-radio-group>
           </div>
-        </div>
 
-        <input
-          ref="fileInputRef"
-          type="file"
-          accept=".json"
-          style="display: none"
-          @change="handleFileImport"
-        />
+          <input
+            ref="fileInputRef"
+            type="file"
+            accept=".json"
+            style="display: none"
+            @change="handleFileImport"
+          />
+        </div>
       </el-card>
 
       <!-- 危险操作卡片 -->
       <el-card class="mobile-card mobile-danger-card">
-        <div class="mobile-danger-header">
-          <el-icon color="#ef4444"><Warning /></el-icon>
-          <span>危险操作</span>
-        </div>
-        <div class="mobile-danger-content">
-          <span class="mobile-danger-label">清除所有任务</span>
-          <span class="mobile-danger-desc">删除所有任务数据，此操作不可撤销</span>
-          <el-button type="danger" @click="clearAllTasks" plain class="mobile-danger-btn">
-            <el-icon><Delete /></el-icon>
-            清除所有数据
-          </el-button>
+        <div class="mobile-card-body">
+          <div class="mobile-row">
+            <div class="mobile-label">
+              <span class="mobile-label-title mobile-danger-title">清除所有任务</span>
+              <span class="mobile-label-desc">删除所有任务数据，此操作不可撤销</span>
+            </div>
+            <el-button type="danger" @click="clearAllTasks" plain>
+              <el-icon><Delete /></el-icon>
+              清除所有数据
+            </el-button>
+          </div>
         </div>
       </el-card>
 
       <!-- 关于卡片 -->
-      <el-card class="mobile-card mobile-about-card">
-        <div class="mobile-card-title">关于</div>
-        <div class="mobile-about-info">
-          <div class="mobile-about-item">
-            <span class="mobile-about-key">应用版本</span>
-            <span class="mobile-about-val">v1.0.0</span>
+      <el-card class="mobile-card">
+        <div class="mobile-card-header">关于</div>
+        <div class="mobile-card-body">
+          <div class="mobile-about-row">
+            <span class="mobile-about-label">应用版本</span>
+            <span class="mobile-about-value">v1.0.0</span>
           </div>
-          <div class="mobile-about-item">
-            <span class="mobile-about-key">技术栈</span>
-            <span class="mobile-about-val">Vue 3 + Vite + Pinia + Element Plus</span>
+          <div class="mobile-about-row">
+            <span class="mobile-about-label">技术栈</span>
+            <span class="mobile-about-value">Vue 3 + Vite + Pinia + Element Plus</span>
           </div>
-          <div class="mobile-about-item">
-            <span class="mobile-about-key">数据存储</span>
-            <span class="mobile-about-val">LocalStorage + 云端存储</span>
+          <div class="mobile-about-row">
+            <span class="mobile-about-label">数据存储</span>
+            <span class="mobile-about-value">LocalStorage + 云端存储</span>
           </div>
         </div>
       </el-card>
@@ -634,11 +629,11 @@ async function clearAllTasks() {
   }
 
   .settings-page {
-    padding: 12px;
+    padding: 16px;
   }
 
   .mobile-header {
-    padding: 16px 0 20px;
+    padding: 8px 0 20px;
     text-align: center;
   }
 
@@ -657,45 +652,51 @@ async function clearAllTasks() {
   .mobile-card {
     background: var(--color-surface);
     border-radius: 12px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
     border: 1px solid var(--color-border);
     margin-bottom: 16px;
-    padding: 0;
     overflow: hidden;
   }
 
-  .mobile-card-title {
+  .mobile-card-header {
     font-size: 15px;
     font-weight: 600;
     color: var(--color-text);
-    padding: 16px 16px 12px;
+    padding: 16px;
     border-bottom: 1px solid var(--color-border-light);
+    background: var(--color-surface-2);
   }
 
-  .mobile-card-content {
+  .mobile-card-body {
     padding: 16px;
   }
 
-  .mobile-setting-row {
+  .mobile-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    padding: 8px 0;
   }
 
-  .mobile-setting-info {
+  .mobile-row:not(:last-child) {
+    border-bottom: 1px solid var(--color-border-light);
+  }
+
+  .mobile-label {
     flex: 1;
+    min-width: 0;
   }
 
-  .mobile-setting-label {
+  .mobile-label-title {
     display: block;
     font-size: 14px;
     font-weight: 500;
     color: var(--color-text);
-    margin-bottom: 3px;
+    margin-bottom: 2px;
   }
 
-  .mobile-setting-desc {
+  .mobile-label-desc {
     display: block;
     font-size: 12px;
     color: var(--color-text-muted);
@@ -706,219 +707,87 @@ async function clearAllTasks() {
     flex-shrink: 0;
   }
 
-  .mobile-data-card {
-    padding: 16px;
-  }
-
-  .mobile-data-block {
-    background: var(--color-surface-2);
-    border-radius: 10px;
-    padding: 16px;
-  }
-
-  .mobile-data-block + .mobile-data-block {
-    margin-top: 12px;
-  }
-
-  .mobile-data-header {
+  .mobile-stats-row {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
+    justify-content: center;
     gap: 12px;
-    margin-bottom: 12px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--color-border-light);
+    margin: 0 -16px;
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
-  .mobile-data-info {
+  .mobile-stat-tag {
     flex: 1;
-  }
-
-  .mobile-data-label {
-    display: block;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text);
-    margin-bottom: 4px;
-  }
-
-  .mobile-data-desc {
-    display: block;
-    font-size: 12px;
-    color: var(--color-text-muted);
-  }
-
-  .mobile-export-btn {
-    flex-shrink: 0;
-    background: var(--color-primary);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 16px;
-    font-size: 13px;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 6px;
-  }
-
-  .mobile-import-btn {
-    flex-shrink: 0;
-    background: var(--color-surface);
-    color: var(--color-text);
+    padding: 10px 8px;
+    background: var(--color-surface-2);
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    padding: 8px 16px;
-    font-size: 13px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    font-size: 12px;
   }
 
-  .mobile-data-stats {
-    display: flex;
-    gap: 24px;
-  }
-
-  .mobile-stat-item {
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
-    font-size: 13px;
-    color: var(--color-text-secondary);
-  }
-
-  .mobile-stat-item .stat-num {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--color-text);
-  }
-
-  .mobile-stat-item.completed .stat-num {
+  .mobile-stat-success {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.3);
     color: var(--color-success);
   }
 
-  .mobile-stat-item.pending .stat-num {
+  .mobile-stat-warning {
+    background: rgba(234, 179, 8, 0.1);
+    border-color: rgba(234, 179, 8, 0.3);
     color: var(--color-warning);
   }
 
-  .mobile-stat-item .stat-text {
-    font-size: 13px;
-  }
-
-  .mobile-import-mode {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px;
-    margin-top: 8px;
-  }
-
-  .import-mode-label {
-    font-size: 13px;
-    color: var(--color-text-muted);
-    flex-shrink: 0;
-  }
-
-  .import-radio {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-  }
-
-  .import-radio.is-checked {
-    background: var(--color-primary);
-    color: #fff;
-    border-color: var(--color-primary);
-  }
-
   .stat-num {
-    font-size: 18px;
-    font-weight: 700;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
   }
 
   .stat-label {
     font-size: 11px;
-    font-weight: 400;
     opacity: 0.8;
+    line-height: 1.4;
   }
 
   .mobile-import-mode {
     display: flex;
-    gap: 16px;
-    padding-top: 12px;
     justify-content: center;
+    gap: 16px;
+    padding-top: 8px;
   }
 
   .mobile-danger-card {
     border-color: var(--color-error-border);
-    background: var(--color-error-light);
+    background: var(--color-surface);
   }
 
-  .mobile-danger-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 16px;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-error);
-    border-bottom: 1px solid var(--color-error-border);
+  .mobile-danger-title {
+    color: var(--color-error) !important;
   }
 
-  .mobile-danger-content {
-    padding: 16px;
-  }
-
-  .mobile-danger-label {
-    display: block;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--color-error);
-    margin-bottom: 4px;
-  }
-
-  .mobile-danger-desc {
-    display: block;
-    font-size: 12px;
-    color: var(--color-text-muted);
-    margin-bottom: 12px;
-  }
-
-  .mobile-danger-btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .mobile-about-card {
-    padding: 16px;
-  }
-
-  .mobile-about-info {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-top: 8px;
-  }
-
-  .mobile-about-item {
+  .mobile-about-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 0;
+    padding: 10px 0;
     border-bottom: 1px solid var(--color-border-light);
   }
 
-  .mobile-about-item:last-child {
+  .mobile-about-row:last-child {
     border-bottom: none;
   }
 
-  .mobile-about-key {
+  .mobile-about-label {
     font-size: 13px;
     color: var(--color-text-muted);
   }
 
-  .mobile-about-val {
+  .mobile-about-value {
     font-size: 13px;
     color: var(--color-text);
     font-weight: 500;
