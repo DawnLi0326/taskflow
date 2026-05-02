@@ -474,6 +474,7 @@ async function clearAllTasks() {
 
 .page-header {
   margin-bottom: 24px;
+  text-align: center;
 }
 
 .page-header h2 {
@@ -794,12 +795,12 @@ async function clearAllTasks() {
 }
 
 .pc-action-icon.export {
-  background: var(--color-primary-light);
+  background: rgba(59, 130, 246, 0.15);
   color: var(--color-primary);
 }
 
 .pc-action-icon.import {
-  background: var(--color-purple-light);
+  background: rgba(139, 92, 246, 0.15);
   color: var(--color-purple);
 }
 
