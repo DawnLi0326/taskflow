@@ -513,8 +513,6 @@ function goToStatistics() {
 }
 
 /* Today Progress */
-.today-progress-card {}
-
 .progress-ring-wrap {
   display: flex;
   align-items: center;

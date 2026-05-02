@@ -8,8 +8,25 @@ import { STORAGE_KEYS } from '../constants'
 
 // ========== 常量配置 ==========
 const STORAGE_KEY = STORAGE_KEYS.TASKS
+const API_PROXY_URL = '/api/sync'
 
 // ========== 工具函数 ==========
+
+/**
+ * 防抖函数
+ * @param {Function} fn - 要防抖的函数
+ * @param {number} delay - 延迟时间（毫秒）
+ * @returns {Function} 防抖后的函数
+ */
+function debounce(fn, delay = 500) {
+  let timer = null
+  return function (...args) {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => {
+      fn.apply(this, args)
+    }, delay)
+  }
+}
 
 /**
  * 获取今天的日期字符串（YYYY-MM-DD）
@@ -74,22 +91,118 @@ export const useTaskStore = defineStore('tasks', () => {
   const tasks = ref([])
 
   /**
+   * 是否正在同步中
+   * @type {import('vue').Ref<boolean>}
+   */
+  const isSyncing = ref(false)
+
+  /**
+   * 最后同步时间
+   * @type {import('vue').Ref<number | null>}
+   */
+  const lastSyncTime = ref(null)
+
+  /**
    * 持久化数据到本地存储
    */
   function persist() {
     saveToLocalStorage(STORAGE_KEY, tasks.value)
   }
 
+  // ========== 云端同步方法 ==========
+
+  /**
+   * 从云端拉取数据
+   */
+  async function fetchFromCloud() {
+    if (isSyncing.value) return
+
+    try {
+      isSyncing.value = true
+      const startTime = Date.now()
+      const res = await fetch(API_PROXY_URL, {
+        method: 'GET',
+        cache: 'no-cache',
+      })
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const data = await res.json()
+      const cloudTasks = data.tasks || (Array.isArray(data) ? data : [])
+
+      if (Array.isArray(cloudTasks) && cloudTasks.length > 0) {
+        const updatedTasks = cloudTasks.map(task => ({
+          notes: '',
+          order: 0,
+          ...task,
+          completed: !!task.completed,
+        }))
+
+        // 只在云端数据更新时才同步
+        const hasChanges = JSON.stringify(updatedTasks) !== JSON.stringify(tasks.value)
+        if (hasChanges) {
+          tasks.value = updatedTasks
+          persist()
+          console.log('✅ 云端数据已同步到本地')
+        }
+      }
+
+      lastSyncTime.value = Date.now()
+      console.log(`⏱️ 云端同步耗时: ${Date.now() - startTime}ms`)
+    } catch (error) {
+      console.error('❌ 从云端拉取数据失败:', error)
+    } finally {
+      isSyncing.value = false
+    }
+  }
+
+  // 带防抖的云端保存函数
+  const debouncedSaveToCloud = debounce(async function () {
+    if (isSyncing.value) return
+
+    try {
+      isSyncing.value = true
+      const startTime = Date.now()
+      const res = await fetch(API_PROXY_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks: tasks.value }),
+      })
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      lastSyncTime.value = Date.now()
+      console.log(`✅ 数据已同步到云端 (耗时: ${Date.now() - startTime}ms)`)
+    } catch (error) {
+      console.error('❌ 同步到云端失败:', error)
+    } finally {
+      isSyncing.value = false
+    }
+  }, 1000)
+
+  /**
+   * 保存到云端
+   */
+  function saveToCloud() {
+    debouncedSaveToCloud()
+  }
+
   /**
    * 初始化任务数据
-   * 从本地存储加载任务列表
+   * 从本地存储加载任务列表，然后后台异步同步云端数据
    */
-  function initTasks() {
+  async function initTasks() {
+    // 先快速加载本地数据，让界面立即显示
     const localTasks = loadFromLocalStorage(STORAGE_KEY)
     if (localTasks.length > 0) {
       tasks.value = localTasks
       console.log('ℹ️ 已加载本地存储数据')
     }
+
+    // 然后后台异步同步云端数据
+    setTimeout(() => {
+      fetchFromCloud()
+    }, 300)
   }
 
   // ========== 计算属性 ==========
@@ -207,6 +320,7 @@ export const useTaskStore = defineStore('tasks', () => {
     }
     tasks.value.push(newTask)
     persist()
+    saveToCloud()
   }
 
   /**
@@ -231,6 +345,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
     tasks.value[idx] = newTask
     persist()
+    saveToCloud()
   }
 
   /**
@@ -240,6 +355,7 @@ export const useTaskStore = defineStore('tasks', () => {
   function deleteTask(id) {
     tasks.value = tasks.value.filter(t => t.id !== id)
     persist()
+    saveToCloud()
   }
 
   /**
@@ -249,6 +365,7 @@ export const useTaskStore = defineStore('tasks', () => {
   function deleteTasks(ids) {
     tasks.value = tasks.value.filter(t => !ids.includes(t.id))
     persist()
+    saveToCloud()
   }
 
   /**
@@ -257,6 +374,7 @@ export const useTaskStore = defineStore('tasks', () => {
   function clearCompleted() {
     tasks.value = tasks.value.filter(t => !t.completed)
     persist()
+    saveToCloud()
   }
 
   /**
@@ -265,6 +383,7 @@ export const useTaskStore = defineStore('tasks', () => {
   function clearAll() {
     tasks.value = []
     persist()
+    saveToCloud()
   }
 
   /**
@@ -287,6 +406,7 @@ export const useTaskStore = defineStore('tasks', () => {
     const completedTasks = tasks.value.filter(t => t.completed)
     tasks.value = [...uncompletedOrdered, ...completedTasks]
     persist()
+    saveToCloud()
   }
 
   /**
@@ -305,6 +425,7 @@ export const useTaskStore = defineStore('tasks', () => {
       tasks.value.push(...newTasks)
     }
     persist()
+    saveToCloud()
   }
 
   /**
@@ -319,6 +440,8 @@ export const useTaskStore = defineStore('tasks', () => {
   return {
     // State
     tasks,
+    isSyncing,
+    lastSyncTime,
 
     // Computed
     today,
@@ -344,5 +467,7 @@ export const useTaskStore = defineStore('tasks', () => {
     importTasks,
     getTasksForStats,
     initTasks,
+    fetchFromCloud,
+    saveToCloud,
   }
 })
