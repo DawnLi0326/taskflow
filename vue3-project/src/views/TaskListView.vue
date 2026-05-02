@@ -872,31 +872,36 @@ const formRules = {
   top: 0;
   right: 16px;
   margin-top: 4px;
-  background: var(--color-bg-page);
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  background: var(--color-surface);
+  border-radius: 10px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
   border: 1px solid var(--color-border);
-  min-width: 100px;
+  min-width: 110px;
   z-index: 9999;
+  overflow: hidden;
 }
 
 .mobile-menu-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  font-size: 13px;
-  color: var(--color-text-primary);
+  gap: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--color-text);
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition: all var(--transition-fast);
 }
 
 .mobile-menu-item:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-surface-2);
 }
 
 .mobile-menu-item-danger {
   color: var(--color-error);
+}
+
+.mobile-menu-item-danger:hover {
+  background: rgba(239, 68, 68, 0.15);
 }
 
 
