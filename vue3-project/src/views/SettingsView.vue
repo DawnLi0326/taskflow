@@ -99,15 +99,15 @@ async function clearAllTasks() {
       </div>
 
       <!-- Appearance -->
-      <div class="settings-section">
-        <h3 class="section-title">
-          <el-icon><Monitor /></el-icon> 外观
-        </h3>
-
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">深色主题</span>
-            <span class="setting-desc">切换深色/浅色显示模式</span>
+      <el-card class="pc-card">
+        <div class="pc-card-header">
+          <el-icon class="pc-card-icon"><Monitor /></el-icon>
+          <span class="pc-card-title">外观</span>
+        </div>
+        <div class="pc-setting-row">
+          <div class="pc-setting-info">
+            <span class="pc-setting-label">深色主题</span>
+            <span class="pc-setting-desc">切换深色/浅色显示模式</span>
           </div>
           <el-switch
             :model-value="settingsStore.darkMode"
@@ -117,156 +117,166 @@ async function clearAllTasks() {
             inline-prompt
           />
         </div>
-      </div>
-
-      <el-divider />
+      </el-card>
 
       <!-- Sort & Display -->
-      <div class="settings-section">
-        <h3 class="section-title">
-          <el-icon><Sort /></el-icon> 排序方式
-        </h3>
-
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">默认排序</span>
-            <span class="setting-desc">影响任务列表的默认显示顺序</span>
+      <el-card class="pc-card">
+        <div class="pc-card-header">
+          <el-icon class="pc-card-icon"><Sort /></el-icon>
+          <span class="pc-card-title">排序方式</span>
+        </div>
+        <div class="pc-setting-row">
+          <div class="pc-setting-info">
+            <span class="pc-setting-label">默认排序</span>
+            <span class="pc-setting-desc">影响任务列表的默认显示顺序</span>
           </div>
           <el-select
             :model-value="settingsStore.sortOrder"
             @change="settingsStore.setSortOrder($event)"
-            style="width: 160px"
+            class="pc-select"
+            placeholder="选择排序"
           >
-            <el-option label="按截止日期" value="dueDate">
-              <span style="display:flex;align-items:center;gap:6px">
-                <el-icon><Calendar /></el-icon> 按截止日期
-              </span>
-            </el-option>
-            <el-option label="按优先级" value="priority">
-              <span style="display:flex;align-items:center;gap:6px">
-                <el-icon><Flag /></el-icon> 按优先级
-              </span>
-            </el-option>
-            <el-option label="自定义顺序" value="custom">
-              <span style="display:flex;align-items:center;gap:6px">
-                <el-icon><Rank /></el-icon> 自定义顺序
-              </span>
-            </el-option>
+            <el-option label="按截止日期" value="dueDate" />
+            <el-option label="按优先级" value="priority" />
+            <el-option label="自定义顺序" value="custom" />
           </el-select>
         </div>
-
-        <div class="setting-hint" v-if="settingsStore.sortOrder === 'custom'">
+        <div class="pc-hint" v-if="settingsStore.sortOrder === 'custom'">
           <el-icon><InfoFilled /></el-icon>
-          自定义顺序模式下，可在任务列表页面拖拽排序任务
+          <span>自定义顺序模式下，可在任务列表页面拖拽排序任务</span>
         </div>
-      </div>
-
-      <el-divider />
+      </el-card>
 
       <!-- Data Management -->
-      <div class="settings-section">
-        <h3 class="section-title">
-          <el-icon><DataAnalysis /></el-icon> 数据管理
-        </h3>
+      <el-card class="pc-card pc-data-card">
+        <div class="pc-card-header">
+          <el-icon class="pc-card-icon"><DataAnalysis /></el-icon>
+          <span class="pc-card-title">数据管理</span>
+        </div>
 
-        <!-- Export -->
-        <div class="data-card">
-          <div class="data-card-header">
-            <div>
-              <p class="data-card-title">导出任务数据</p>
-              <p class="data-card-desc">将所有任务保存为 JSON 文件，可用于备份或迁移</p>
+        <!-- Stats -->
+        <div class="pc-stats-wrapper">
+          <div class="pc-stat-item">
+            <div class="pc-stat-circle">
+              <span class="pc-stat-num">{{ taskStore.totalCount }}</span>
             </div>
-            <el-button type="primary" @click="exportTasks" plain>
-              <el-icon><Download /></el-icon>
-              导出 JSON
-            </el-button>
+            <span class="pc-stat-label">总任务</span>
           </div>
-          <div class="data-stats">
-            <span class="data-stat">
-              <strong>{{ taskStore.totalCount }}</strong> 个任务
-            </span>
-            <span class="data-stat">
-              <strong>{{ taskStore.completedCount }}</strong> 已完成
-            </span>
-            <span class="data-stat">
-              <strong>{{ taskStore.incompleteCount }}</strong> 未完成
-            </span>
+          <div class="pc-stat-divider"></div>
+          <div class="pc-stat-item success">
+            <div class="pc-stat-circle">
+              <span class="pc-stat-num">{{ taskStore.completedCount }}</span>
+            </div>
+            <span class="pc-stat-label">已完成</span>
+          </div>
+          <div class="pc-stat-divider"></div>
+          <div class="pc-stat-item warning">
+            <div class="pc-stat-circle">
+              <span class="pc-stat-num">{{ taskStore.incompleteCount }}</span>
+            </div>
+            <span class="pc-stat-label">未完成</span>
           </div>
         </div>
 
-        <!-- Import -->
-        <div class="data-card">
-          <div class="data-card-header">
-            <div>
-              <p class="data-card-title">导入任务数据</p>
-              <p class="data-card-desc">从 JSON 文件还原任务数据</p>
+        <!-- Actions -->
+        <div class="pc-actions">
+          <div class="pc-action-item">
+            <div class="pc-action-icon export">
+              <el-icon><Download /></el-icon>
             </div>
-            <el-button @click="triggerImport">
+            <div class="pc-action-content">
+              <span class="pc-action-title">导出数据</span>
+              <span class="pc-action-desc">保存为 JSON 文件</span>
+            </div>
+            <el-button type="primary" @click="exportTasks" class="pc-action-btn">
+              导出
+            </el-button>
+          </div>
+          <div class="pc-action-item">
+            <div class="pc-action-icon import">
               <el-icon><Upload /></el-icon>
+            </div>
+            <div class="pc-action-content">
+              <span class="pc-action-title">导入数据</span>
+              <span class="pc-action-desc">从 JSON 文件还原</span>
+            </div>
+            <el-button @click="triggerImport" class="pc-action-btn secondary">
               选择文件
             </el-button>
           </div>
-          <div class="import-mode-row">
-            <span class="import-mode-label">导入模式：</span>
-            <el-radio-group v-model="importMode" size="small">
-              <el-radio-button value="merge">
-                <el-icon><Plus /></el-icon> 合并（保留现有）
-              </el-radio-button>
-              <el-radio-button value="replace">
-                <el-icon><RefreshRight /></el-icon> 替换（覆盖所有）
-              </el-radio-button>
-            </el-radio-group>
-          </div>
-          <input
-            ref="fileInputRef"
-            type="file"
-            accept=".json"
-            style="display: none"
-            @change="handleFileImport"
-          />
         </div>
 
-        <!-- Danger Zone -->
-        <div class="danger-zone">
-          <div class="danger-header">
-            <el-icon color="#ef4444"><Warning /></el-icon>
-            <span>危险操作</span>
-          </div>
-          <div class="setting-item">
-            <div class="setting-info">
-              <span class="setting-label danger-label">清除所有任务</span>
-              <span class="setting-desc">删除所有任务数据，此操作不可撤销</span>
+        <!-- Import Mode -->
+        <div class="pc-import-mode-wrapper">
+          <span class="pc-import-mode-label">导入方式</span>
+          <div class="pc-import-options">
+            <div 
+              class="pc-import-option" 
+              :class="{ active: importMode === 'merge' }"
+              @click="importMode = 'merge'"
+            >
+              <el-icon><Plus /></el-icon>
+              <span>合并</span>
             </div>
-            <el-button type="danger" @click="clearAllTasks" plain>
-              <el-icon><Delete /></el-icon>
-              清除所有数据
-            </el-button>
+            <div 
+              class="pc-import-option" 
+              :class="{ active: importMode === 'replace' }"
+              @click="importMode = 'replace'"
+            >
+              <el-icon><RefreshRight /></el-icon>
+              <span>替换</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <el-divider />
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept=".json"
+          style="display: none"
+          @change="handleFileImport"
+        />
+      </el-card>
+
+      <!-- Danger Zone -->
+      <el-card class="pc-card pc-danger-card">
+        <div class="pc-danger-header">
+          <el-icon color="#ef4444"><Warning /></el-icon>
+          <span>危险操作</span>
+        </div>
+        <div class="pc-danger-content">
+          <div class="pc-danger-info">
+            <span class="pc-danger-label">清除所有任务</span>
+            <span class="pc-danger-desc">删除所有任务数据，此操作不可撤销</span>
+          </div>
+          <el-button type="danger" @click="clearAllTasks" class="pc-danger-btn">
+            <el-icon><Delete /></el-icon>
+            清除所有数据
+          </el-button>
+        </div>
+      </el-card>
 
       <!-- About -->
-      <div class="settings-section">
-        <h3 class="section-title">
-          <el-icon><InfoFilled /></el-icon> 关于
-        </h3>
-        <div class="about-info">
-          <div class="about-item">
-            <span class="about-key">应用版本</span>
-            <span class="about-val">v1.0.0</span>
+      <el-card class="pc-card pc-about-card">
+        <div class="pc-card-header">
+          <el-icon class="pc-card-icon"><InfoFilled /></el-icon>
+          <span class="pc-card-title">关于</span>
+        </div>
+        <div class="pc-about-info">
+          <div class="pc-about-item">
+            <span class="pc-about-key">应用版本</span>
+            <span class="pc-about-val">v1.0.0</span>
           </div>
-          <div class="about-item">
-            <span class="about-key">技术栈</span>
-            <span class="about-val">Vue 3 + Vite + Pinia + Element Plus + ECharts</span>
+          <div class="pc-about-item">
+            <span class="pc-about-key">技术栈</span>
+            <span class="pc-about-val">Vue 3 + Vite + Pinia + Element Plus</span>
           </div>
-          <div class="about-item">
-            <span class="about-key">数据存储</span>
-            <span class="about-val">LocalStorage（本地缓存）云端存储</span>
+          <div class="pc-about-item">
+            <span class="pc-about-key">数据存储</span>
+            <span class="pc-about-val">LocalStorage + 云端存储</span>
           </div>
         </div>
-      </div>
+      </el-card>
     </div>
 
     <!-- 移动端布局 -->
@@ -379,16 +389,24 @@ async function clearAllTasks() {
         <!-- 导入模式 -->
         <div class="mobile-import-mode-wrapper">
           <span class="import-mode-label">导入方式</span>
-          <el-radio-group v-model="importMode" class="import-radio-group">
-            <el-radio value="merge" class="import-radio">
+          <div class="import-options">
+            <div 
+              class="import-option" 
+              :class="{ active: importMode === 'merge' }"
+              @click="importMode = 'merge'"
+            >
               <el-icon><Plus /></el-icon>
               <span>合并</span>
-            </el-radio>
-            <el-radio value="replace" class="import-radio">
+            </div>
+            <div 
+              class="import-option" 
+              :class="{ active: importMode === 'replace' }"
+              @click="importMode = 'replace'"
+            >
               <el-icon><RefreshRight /></el-icon>
               <span>替换</span>
-            </el-radio>
-          </el-radio-group>
+            </div>
+          </div>
         </div>
 
         <input
@@ -609,32 +627,337 @@ async function clearAllTasks() {
   color: var(--color-error) !important;
 }
 
-/* About */
-.about-info {
+/* ========= PC端卡片样式 ========= */
+.pc-card {
+  margin-bottom: 20px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.pc-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border-light);
+  margin-bottom: 0;
+}
+
+.pc-card-icon {
+  font-size: 18px;
+  color: var(--color-primary);
+}
+
+.pc-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.pc-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+
+.pc-setting-info {
   display: flex;
   flex-direction: column;
+  gap: 4px;
+}
+
+.pc-setting-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.pc-setting-desc {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.pc-select {
+  width: 160px;
+}
+
+.pc-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 20px 16px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* PC端数据管理卡片 */
+.pc-data-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.pc-data-card .pc-card-header {
+  margin-bottom: 0;
+}
+
+.pc-stats-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  padding: 24px 20px;
+  background: linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-surface) 100%);
+}
+
+.pc-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.pc-stat-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.pc-stat-item.success .pc-stat-circle {
+  background: var(--color-success);
+}
+
+.pc-stat-item.warning .pc-stat-circle {
+  background: var(--color-warning);
+}
+
+.pc-stat-num {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.pc-stat-item.success .pc-stat-num,
+.pc-stat-item.warning .pc-stat-num {
+  color: #fff;
+}
+
+.pc-stat-label {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.pc-stat-divider {
+  width: 1px;
+  height: 48px;
+  background: var(--color-border);
+}
+
+.pc-actions {
+  padding: 0 20px;
+}
+
+.pc-action-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  background: var(--color-surface-2);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  transition: background 0.2s ease;
+}
+
+.pc-action-item:last-child {
+  margin-bottom: 0;
+}
+
+.pc-action-item:hover {
+  background: var(--color-border-light);
+}
+
+.pc-action-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pc-action-icon.export {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.pc-action-icon.import {
+  background: var(--color-purple-light);
+  color: var(--color-purple);
+}
+
+.pc-action-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pc-action-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.pc-action-desc {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.pc-action-btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.pc-action-btn.secondary {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.pc-import-mode-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-top: 1px solid var(--color-border-light);
+  gap: 16px;
+}
+
+.pc-import-mode-label {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.pc-import-options {
+  display: flex;
   gap: 10px;
 }
 
-.about-item {
+.pc-import-option {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: 13px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 70px;
+  justify-content: center;
+  color: var(--color-text-secondary);
+}
+
+.pc-import-option:hover {
+  background: var(--color-border-light);
+}
+
+.pc-import-option.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.pc-import-option.active el-icon {
+  color: #fff;
+}
+
+/* PC端危险操作卡片 */
+.pc-danger-card {
+  border-color: var(--color-error-border);
+  background: var(--color-error-light);
+}
+
+.pc-danger-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-error);
+}
+
+.pc-danger-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px 16px;
+}
+
+.pc-danger-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pc-danger-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-error);
+}
+
+.pc-danger-desc {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.pc-danger-btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+/* PC端关于卡片 */
+.pc-about-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.pc-about-info {
+  padding: 0 20px 16px;
+}
+
+.pc-about-item {
   display: flex;
   gap: 20px;
   font-size: 13px;
-  padding: 10px 0;
+  padding: 14px 0;
   border-bottom: 1px solid var(--color-border-light);
 }
 
-.about-item:last-child {
+.pc-about-item:last-child {
   border-bottom: none;
 }
 
-.about-key {
+.pc-about-key {
   width: 80px;
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
-.about-val {
+.pc-about-val {
   color: var(--color-text);
   font-weight: 500;
 }
@@ -927,7 +1250,7 @@ async function clearAllTasks() {
     justify-content: space-between;
     padding: 12px 16px 16px;
     border-top: 1px solid var(--color-border-light);
-    gap: 16px;
+    gap: 12px;
   }
 
   .import-mode-label {
@@ -936,29 +1259,40 @@ async function clearAllTasks() {
     flex-shrink: 0;
   }
 
-  .import-radio-group {
+  .import-options {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     flex: 1;
     justify-content: flex-end;
   }
 
-  .import-radio {
+  .import-option {
     display: flex;
     align-items: center;
     gap: 5px;
-    padding: 8px 16px;
+    padding: 6px 14px;
     border-radius: 20px;
     font-size: 13px;
     background: var(--color-surface-2);
-    border-color: var(--color-border);
-    min-width: 70px;
+    border: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 65px;
     justify-content: center;
+    color: var(--color-text-secondary);
   }
 
-  .import-radio.is-checked {
+  .import-option:hover {
+    background: var(--color-border-light);
+  }
+
+  .import-option.active {
     background: var(--color-primary);
     border-color: var(--color-primary);
+    color: #fff;
+  }
+
+  .import-option.active el-icon {
     color: #fff;
   }
 
