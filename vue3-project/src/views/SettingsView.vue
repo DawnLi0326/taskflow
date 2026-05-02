@@ -288,6 +288,10 @@ async function clearAllTasks() {
 
       <!-- 外观卡片 -->
       <el-card class="mobile-card">
+        <div class="mobile-card-header">
+          <el-icon class="header-icon"><Monitor /></el-icon>
+          <span class="mobile-card-title">外观</span>
+        </div>
         <div class="mobile-card-content">
           <div class="mobile-setting-row">
             <div class="mobile-setting-info">
@@ -306,6 +310,10 @@ async function clearAllTasks() {
 
       <!-- 排序方式卡片 -->
       <el-card class="mobile-card">
+        <div class="mobile-card-header">
+          <el-icon class="header-icon"><Sort /></el-icon>
+          <span class="mobile-card-title">排序方式</span>
+        </div>
         <div class="mobile-card-content">
           <div class="mobile-setting-row">
             <div class="mobile-setting-info">
@@ -436,7 +444,10 @@ async function clearAllTasks() {
 
       <!-- 关于卡片 -->
       <el-card class="mobile-card mobile-about-card">
-        <div class="mobile-card-title">关于</div>
+        <div class="mobile-card-header">
+          <el-icon class="header-icon"><InfoFilled /></el-icon>
+          <span class="mobile-card-title">关于</span>
+        </div>
         <div class="mobile-about-info">
           <div class="mobile-about-item">
             <span class="mobile-about-key">应用版本</span>
@@ -1338,14 +1349,15 @@ async function clearAllTasks() {
   }
 
   .mobile-about-card {
-    padding: 16px;
+    padding: 0;
+    overflow: hidden;
   }
 
   .mobile-about-info {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    margin-top: 8px;
+    padding: 16px;
   }
 
   .mobile-about-item {
