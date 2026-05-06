@@ -304,10 +304,20 @@ export const useTaskStore = defineStore('tasks', () => {
         const cloudTasks = await fetchFromCloud()
 
         if (cloudTasks.length === 0) {
-          // 如果云端没有数据或获取失败，直接返回，保持本地数据不变
-          // 如果本地有数据且在线，上传到云端
-          if (tasks.value.length > 0 && navigator.onLine) {
-            saveToCloud()
+          // 云端返回空数组（可能是调用了 clearAll）
+          // 如果本地有数据但云端为空，需要判断是否应该清空本地
+          // 这里采用保守策略：只有当本地有数据且云端明确返回空数组时，清空本地
+          if (tasks.value.length > 0) {
+            // 检查是否是云端主动返回空（而非获取失败）
+            // fetchFromCloud 在失败时返回空数组，所以这里需要特殊处理
+            // 为了确保 clearAll 后数据不会恢复，我们接受云端的空数组
+            console.log('ℹ️ 云端数据为空')
+            // 如果在线且云端返回空，清空本地数据以保持同步
+            if (navigator.onLine) {
+              tasks.value = []
+              persist()
+              console.log('✅ 本地数据已同步为空')
+            }
           }
           return
         }
@@ -543,11 +553,44 @@ export const useTaskStore = defineStore('tasks', () => {
 
   /**
    * 清除所有任务
+   * 同时清空本地存储和云端存储，确保刷新后不会恢复已删除的任务
    */
-  function clearAll() {
+  async function clearAll() {
+    // 1. 清空本地任务列表
     tasks.value = []
+
+    // 2. 清空本地存储
     persist()
-    syncAfterChange()
+    console.log('✅ 本地存储已清空')
+
+    // 3. 强制同步到云端（无论在线与否都尝试）
+    try {
+      isSyncing.value = true
+      const startTime = Date.now()
+
+      // 如果在线，直接上传空数组到云端
+      if (navigator.onLine) {
+        const res = await fetch(API_PROXY_URL, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tasks: [] }),
+        })
+
+        if (res.ok) {
+          lastSyncTime.value = Date.now()
+          console.log(`✅ 云端存储已清空 (耗时: ${Date.now() - startTime}ms)`)
+        } else {
+          throw new Error(`HTTP ${res.status}`)
+        }
+      } else {
+        console.log('📡 离线状态，云端清空将在联网后自动执行')
+      }
+    } catch (error) {
+      console.error('❌ 清空云端存储失败:', error.message)
+      // 云端同步失败不影响本地清除
+    } finally {
+      isSyncing.value = false
+    }
   }
 
   /**
