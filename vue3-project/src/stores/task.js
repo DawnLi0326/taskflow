@@ -112,10 +112,11 @@ export const useTaskStore = defineStore('tasks', () => {
   // ========== 云端同步方法 ==========
 
   /**
-   * 从云端拉取数据
+   * 从云端拉取数据（返回标准化后的任务数组）
+   * @returns {Array<Object>} 云端任务数组（标准化后）
    */
   async function fetchFromCloud() {
-    if (isSyncing.value) return
+    if (isSyncing.value) return []
 
     try {
       isSyncing.value = true
@@ -130,27 +131,20 @@ export const useTaskStore = defineStore('tasks', () => {
       const data = await res.json()
       const cloudTasks = data.tasks || (Array.isArray(data) ? data : [])
 
-      if (Array.isArray(cloudTasks) && cloudTasks.length > 0) {
-        const updatedTasks = cloudTasks.map(task => ({
-          notes: '',
-          order: 0,
-          ...task,
-          completed: !!task.completed,
-        }))
-
-        // 只在云端数据更新时才同步
-        const hasChanges = JSON.stringify(updatedTasks) !== JSON.stringify(tasks.value)
-        if (hasChanges) {
-          tasks.value = updatedTasks
-          persist()
-          console.log('✅ 云端数据已同步到本地')
-        }
-      }
+      // 标准化云端任务数据
+      const normalizedTasks = cloudTasks.map(task => ({
+        notes: '',
+        order: 0,
+        ...task,
+        completed: !!task.completed,
+      }))
 
       lastSyncTime.value = Date.now()
       console.log(`⏱️ 云端同步耗时: ${Date.now() - startTime}ms`)
+      return normalizedTasks
     } catch (error) {
-      console.error('❌ 从云端拉取数据失败:', error)
+      console.warn('⚠️ 从云端拉取数据失败，将继续使用本地数据:', error.message)
+      return []
     } finally {
       isSyncing.value = false
     }
@@ -189,19 +183,58 @@ export const useTaskStore = defineStore('tasks', () => {
 
   /**
    * 初始化任务数据
-   * 从本地存储加载任务列表，然后后台异步同步云端数据
+   * 策略：优先加载本地数据，然后与云端数据合并（以本地为主，补充云端缺失）
    */
   async function initTasks() {
-    // 先快速加载本地数据，让界面立即显示
+    // 1. 优先加载本地存储数据，保证离线添加的任务立即显示
     const localTasks = loadFromLocalStorage(STORAGE_KEY)
     if (localTasks.length > 0) {
       tasks.value = localTasks
       console.log('ℹ️ 已加载本地存储数据')
     }
 
-    // 然后后台异步同步云端数据
-    setTimeout(() => {
-      fetchFromCloud()
+    // 2. 后台异步拉取云端数据并合并
+    setTimeout(async () => {
+      try {
+        // 3. 获取云端任务数据
+        const cloudTasks = await fetchFromCloud()
+
+        if (cloudTasks.length === 0) {
+          // 如果云端没有数据或获取失败，直接返回，保持本地数据不变
+          return
+        }
+
+        // 4. 合并数据（以本地为主，补充云端缺失）
+        // 建立本地任务的 Map（以 id 为键）
+        const localTaskMap = new Map()
+        tasks.value.forEach(task => {
+          localTaskMap.set(task.id, task)
+        })
+
+        // 遍历云端任务，只添加本地不存在的任务
+        let addedFromCloud = 0
+        for (const cloudTask of cloudTasks) {
+          if (!localTaskMap.has(cloudTask.id)) {
+            tasks.value.push(cloudTask)
+            addedFromCloud++
+          }
+          // 如果 id 已存在，保留本地任务（不覆盖）
+        }
+
+        if (addedFromCloud > 0) {
+          // 5. 保存合并后的数据到本地
+          persist()
+          console.log(`✅ 已从云端补充 ${addedFromCloud} 个新任务`)
+
+          // 6. 将合并后的完整数据推送到云端（保持云端与本地一致）
+          saveToCloud()
+        } else {
+          console.log('ℹ️ 本地数据已是最新，无需合并')
+        }
+      } catch (error) {
+        // 云端同步失败不影响页面正常展示
+        console.warn('⚠️ 云端同步失败，将继续使用本地数据:', error.message)
+      }
     }, 300)
   }
 
