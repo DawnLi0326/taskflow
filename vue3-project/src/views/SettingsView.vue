@@ -137,10 +137,11 @@ async function clearAllTasks() {
       }
     )
     
-    taskStore.clearAll()
+    // 等待异步操作完成
+    await taskStore.clearAll()
     ElMessage.success('所有任务数据已清除')
   } catch {
-    // 用户取消操作
+    // 用户取消操作或清除失败
   }
 }
 </script>
