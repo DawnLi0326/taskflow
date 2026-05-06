@@ -1,6 +1,6 @@
 /**
  * 任务状态管理 Store
- * 负责任务的增删改查、排序、导入导出等操作
+ * 负责任务的增删改查、排序、导入导出及多设备同步
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
@@ -36,16 +36,29 @@ function getTodayStr() {
 }
 
 /**
- * 标准化任务数据
+ * 获取当前时间的 ISO 字符串
+ * @returns {string} 当前时间（ISO格式）
+ */
+function getNowISO() {
+  return new Date().toISOString()
+}
+
+/**
+ * 标准化任务数据（确保所有必需字段存在）
  * @param {Object} task - 任务对象
  * @returns {Object} 标准化后的任务对象
  */
 function normalizeTask(task) {
+  // 为旧数据补充 updatedAt 字段
+  const now = getNowISO()
   return {
     notes: '',
     order: 0,
+    updatedAt: now,
     ...task,
     completed: !!task.completed,
+    // 确保 updatedAt 存在，旧数据使用当前时间作为默认值
+    updatedAt: task.updatedAt || now,
   }
 }
 
@@ -109,6 +122,69 @@ export const useTaskStore = defineStore('tasks', () => {
     saveToLocalStorage(STORAGE_KEY, tasks.value)
   }
 
+  // ========== 合并函数 ==========
+
+  /**
+   * 合并本地任务与云端任务
+   * 合并规则：
+   * - 以任务 id 为唯一标识
+   * - 如果某个任务仅存在于本地，则保留本地
+   * - 如果仅存在于云端，则加入本地
+   * - 如果两边都存在，比较 updatedAt，保留较新的一个（时间相同保留云端）
+   * @param {Array<Object>} localTasks - 本地任务数组
+   * @param {Array<Object>} cloudTasks - 云端任务数组
+   * @returns {Array<Object>} 合并后的任务数组
+   */
+  function mergeTasks(localTasks, cloudTasks) {
+    // 建立本地任务的 Map（以 id 为键）
+    const mergedMap = new Map()
+
+    // 先将本地任务放入 Map
+    localTasks.forEach(task => {
+      mergedMap.set(task.id, { ...task })
+    })
+
+    // 遍历云端任务，进行合并
+    let updatedCount = 0
+    let addedCount = 0
+
+    cloudTasks.forEach(cloudTask => {
+      const normalizedCloudTask = normalizeTask(cloudTask)
+      const localTask = mergedMap.get(cloudTask.id)
+
+      if (!localTask) {
+        // 云端有，本地没有 → 添加到合并结果
+        mergedMap.set(cloudTask.id, normalizedCloudTask)
+        addedCount++
+      } else {
+        // 两边都存在 → 比较 updatedAt，保留较新的
+        const localUpdatedAt = new Date(localTask.updatedAt)
+        const cloudUpdatedAt = new Date(normalizedCloudTask.updatedAt)
+
+        if (cloudUpdatedAt > localUpdatedAt) {
+          // 云端更新较新 → 使用云端数据
+          mergedMap.set(cloudTask.id, normalizedCloudTask)
+          updatedCount++
+        } else if (cloudUpdatedAt.getTime() === localUpdatedAt.getTime()) {
+          // 时间相同 → 保留云端（确保一致性）
+          mergedMap.set(cloudTask.id, normalizedCloudTask)
+          updatedCount++
+        }
+        // 本地更新较新 → 保留本地（不做操作）
+      }
+    })
+
+    // 将 Map 转换为数组并排序
+    const mergedTasks = Array.from(mergedMap.values()).sort((a, b) => {
+      // 先按完成状态排序（未完成在前），再按 order 排序
+      if (a.completed !== b.completed) return a.completed ? 1 : -1
+      return Number(a.order) - Number(b.order)
+    })
+
+    console.log(`🔄 合并完成: 添加 ${addedCount} 个新任务, 更新 ${updatedCount} 个任务`)
+    return mergedTasks
+  }
+
   // ========== 云端同步方法 ==========
 
   /**
@@ -131,13 +207,8 @@ export const useTaskStore = defineStore('tasks', () => {
       const data = await res.json()
       const cloudTasks = data.tasks || (Array.isArray(data) ? data : [])
 
-      // 标准化云端任务数据
-      const normalizedTasks = cloudTasks.map(task => ({
-        notes: '',
-        order: 0,
-        ...task,
-        completed: !!task.completed,
-      }))
+      // 标准化云端任务数据（补充 updatedAt 字段）
+      const normalizedTasks = cloudTasks.map(task => normalizeTask(task))
 
       lastSyncTime.value = Date.now()
       console.log(`⏱️ 云端同步耗时: ${Date.now() - startTime}ms`)
@@ -153,6 +224,10 @@ export const useTaskStore = defineStore('tasks', () => {
   // 带防抖的云端保存函数
   const debouncedSaveToCloud = debounce(async function () {
     if (isSyncing.value) return
+    if (!navigator.onLine) {
+      console.log('📡 离线状态，跳过云端保存')
+      return
+    }
 
     try {
       isSyncing.value = true
@@ -182,8 +257,37 @@ export const useTaskStore = defineStore('tasks', () => {
   }
 
   /**
+   * 同步后处理函数
+   * 如果在线，立即调用 saveToCloud；如果离线，不做处理（下次联网时合并）
+   */
+  function syncAfterChange() {
+    if (navigator.onLine) {
+      saveToCloud()
+    } else {
+      console.log('📡 离线状态，数据已保存到本地，联网后将自动同步')
+    }
+  }
+
+  /**
+   * 从云端同步数据（手动触发）
+   */
+  async function syncFromCloud() {
+    try {
+      const cloudTasks = await fetchFromCloud()
+      if (cloudTasks.length > 0) {
+        const mergedTasks = mergeTasks(tasks.value, cloudTasks)
+        tasks.value = mergedTasks
+        persist()
+        saveToCloud()
+      }
+    } catch (error) {
+      console.error('❌ 云端同步失败:', error)
+    }
+  }
+
+  /**
    * 初始化任务数据
-   * 策略：优先加载本地数据，然后与云端数据合并（以本地为主，补充云端缺失）
+   * 策略：优先加载本地数据，然后与云端数据合并（基于 updatedAt 时间戳）
    */
   async function initTasks() {
     // 1. 优先加载本地存储数据，保证离线添加的任务立即显示
@@ -201,35 +305,35 @@ export const useTaskStore = defineStore('tasks', () => {
 
         if (cloudTasks.length === 0) {
           // 如果云端没有数据或获取失败，直接返回，保持本地数据不变
+          // 如果本地有数据且在线，上传到云端
+          if (tasks.value.length > 0 && navigator.onLine) {
+            saveToCloud()
+          }
           return
         }
 
-        // 4. 合并数据（以本地为主，补充云端缺失）
-        // 建立本地任务的 Map（以 id 为键）
-        const localTaskMap = new Map()
-        tasks.value.forEach(task => {
-          localTaskMap.set(task.id, task)
-        })
+        // 4. 使用 mergeTasks 合并数据
+        const mergedTasks = mergeTasks(tasks.value, cloudTasks)
 
-        // 遍历云端任务，只添加本地不存在的任务
-        let addedFromCloud = 0
-        for (const cloudTask of cloudTasks) {
-          if (!localTaskMap.has(cloudTask.id)) {
-            tasks.value.push(cloudTask)
-            addedFromCloud++
-          }
-          // 如果 id 已存在，保留本地任务（不覆盖）
-        }
+        // 5. 检查是否有变化
+        const hasChanges = JSON.stringify(mergedTasks) !== JSON.stringify(tasks.value)
 
-        if (addedFromCloud > 0) {
-          // 5. 保存合并后的数据到本地
+        if (hasChanges) {
+          // 6. 更新本地任务列表
+          tasks.value = mergedTasks
+
+          // 7. 保存合并后的数据到本地
           persist()
-          console.log(`✅ 已从云端补充 ${addedFromCloud} 个新任务`)
+          console.log('✅ 已合并云端数据')
 
-          // 6. 将合并后的完整数据推送到云端（保持云端与本地一致）
+          // 8. 将合并后的完整数据推送到云端（保持云端与本地一致）
           saveToCloud()
         } else {
           console.log('ℹ️ 本地数据已是最新，无需合并')
+          // 但如果在线，仍尝试上传（确保云端有最新数据）
+          if (navigator.onLine) {
+            saveToCloud()
+          }
         }
       } catch (error) {
         // 云端同步失败不影响页面正常展示
@@ -350,10 +454,11 @@ export const useTaskStore = defineStore('tasks', () => {
       ...normalizeTask(task),
       id: Date.now().toString(),
       order: tasks.value.length,
+      updatedAt: getNowISO(),
     }
     tasks.value.push(newTask)
     persist()
-    saveToCloud()
+    syncAfterChange()
   }
 
   /**
@@ -367,18 +472,44 @@ export const useTaskStore = defineStore('tasks', () => {
 
     const oldTask = tasks.value[idx]
     const wasCompleted = oldTask.completed
-    const newTask = { ...oldTask, ...updates }
+    const newTask = {
+      ...oldTask,
+      ...updates,
+      updatedAt: getNowISO(), // 更新时间戳
+    }
 
     // 处理完成状态变更
     if (!wasCompleted && newTask.completed) {
-      newTask.completedAt = new Date().toISOString()
+      newTask.completedAt = getNowISO()
     } else if (wasCompleted && !newTask.completed) {
       delete newTask.completedAt
     }
 
     tasks.value[idx] = newTask
     persist()
-    saveToCloud()
+    syncAfterChange()
+  }
+
+  /**
+   * 切换任务完成状态（快捷方法）
+   * @param {string} id - 任务ID
+   */
+  function toggleComplete(id) {
+    const idx = tasks.value.findIndex(t => t.id === id)
+    if (idx === -1) return
+
+    const task = tasks.value[idx]
+    const newCompleted = !task.completed
+
+    tasks.value[idx] = {
+      ...task,
+      completed: newCompleted,
+      completedAt: newCompleted ? getNowISO() : undefined,
+      updatedAt: getNowISO(),
+    }
+
+    persist()
+    syncAfterChange()
   }
 
   /**
@@ -388,7 +519,7 @@ export const useTaskStore = defineStore('tasks', () => {
   function deleteTask(id) {
     tasks.value = tasks.value.filter(t => t.id !== id)
     persist()
-    saveToCloud()
+    syncAfterChange()
   }
 
   /**
@@ -398,7 +529,7 @@ export const useTaskStore = defineStore('tasks', () => {
   function deleteTasks(ids) {
     tasks.value = tasks.value.filter(t => !ids.includes(t.id))
     persist()
-    saveToCloud()
+    syncAfterChange()
   }
 
   /**
@@ -407,7 +538,7 @@ export const useTaskStore = defineStore('tasks', () => {
   function clearCompleted() {
     tasks.value = tasks.value.filter(t => !t.completed)
     persist()
-    saveToCloud()
+    syncAfterChange()
   }
 
   /**
@@ -416,7 +547,7 @@ export const useTaskStore = defineStore('tasks', () => {
   function clearAll() {
     tasks.value = []
     persist()
-    saveToCloud()
+    syncAfterChange()
   }
 
   /**
@@ -432,6 +563,7 @@ export const useTaskStore = defineStore('tasks', () => {
     for (const task of tasks.value) {
       if (orderMap.has(task.id)) {
         task.order = orderMap.get(task.id)
+        task.updatedAt = getNowISO() // 更新时间戳
       }
     }
 
@@ -439,7 +571,7 @@ export const useTaskStore = defineStore('tasks', () => {
     const completedTasks = tasks.value.filter(t => t.completed)
     tasks.value = [...uncompletedOrdered, ...completedTasks]
     persist()
-    saveToCloud()
+    syncAfterChange()
   }
 
   /**
@@ -449,7 +581,13 @@ export const useTaskStore = defineStore('tasks', () => {
    */
   function importTasks(imported, mode = 'replace') {
     if (!Array.isArray(imported)) return
-    const normalized = imported.map(normalizeTask)
+
+    const now = getNowISO()
+    const normalized = imported.map(task => ({
+      ...normalizeTask(task),
+      updatedAt: task.updatedAt || now,
+    }))
+
     if (mode === 'replace') {
       tasks.value = normalized
     } else {
@@ -458,7 +596,7 @@ export const useTaskStore = defineStore('tasks', () => {
       tasks.value.push(...newTasks)
     }
     persist()
-    saveToCloud()
+    syncAfterChange()
   }
 
   /**
@@ -492,6 +630,7 @@ export const useTaskStore = defineStore('tasks', () => {
     // Actions
     addTask,
     updateTask,
+    toggleComplete,
     deleteTask,
     deleteTasks,
     clearCompleted,
@@ -502,5 +641,7 @@ export const useTaskStore = defineStore('tasks', () => {
     initTasks,
     fetchFromCloud,
     saveToCloud,
+    syncFromCloud,
+    mergeTasks,
   }
 })

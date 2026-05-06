@@ -7,6 +7,7 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import router from './router/index'
 import './style.css'
 import App from './App.vue'
+import { useTaskStore } from './stores/task'
 
 const app = createApp(App)
 
@@ -14,7 +15,8 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)
 }
 
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
 app.use(router)
 app.use(ElementPlus)
 
@@ -48,7 +50,16 @@ if ('serviceWorker' in navigator) {
  */
 function updateOnlineStatus() {
   if (navigator.onLine) {
-    ElMessage.success('网络已恢复，数据将自动同步')
+    ElMessage.success('网络已恢复，正在同步数据...')
+    // 网络恢复时自动从云端同步数据
+    setTimeout(() => {
+      try {
+        const taskStore = useTaskStore()
+        taskStore.syncFromCloud()
+      } catch (error) {
+        console.error('自动同步失败:', error)
+      }
+    }, 500)
   } else {
     ElMessage.warning('当前处于离线模式，数据将保存到本地，联网后自动同步')
   }
