@@ -1,7 +1,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import router from './router/index'
@@ -22,28 +22,7 @@ app.use(ElementPlus)
 
 app.mount('#app')
 
-// ========== PWA 离线缓存提示功能 ==========
-
-/**
- * 监听 PWA 更新
- */
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    ElMessageBox.confirm(
-      '检测到应用有更新，是否立即刷新以获取最新版本？',
-      '应用更新',
-      {
-        confirmButtonText: '刷新',
-        cancelButtonText: '稍后',
-        type: 'info',
-      }
-    ).then(() => {
-      window.location.reload()
-    }).catch(() => {
-      ElMessage.info('将在下次访问时自动更新')
-    })
-  })
-}
+// ========== PWA 离线缓存功能 ==========
 
 /**
  * 监听在线/离线状态
@@ -76,7 +55,7 @@ if (!navigator.onLine) {
   }, 1000)
 }
 
-// 监听 PWA 安装提示
+// 监听 PWA 安装提示（用于后续添加安装按钮）
 let deferredPrompt = null
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault()
