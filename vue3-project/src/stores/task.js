@@ -55,10 +55,16 @@ function normalizeTask(task) {
     notes: '',
     order: 0,
     tags: [],
+    subtasks: [],
     updatedAt: now,
     ...task,
     completed: !!task.completed,
     tags: Array.isArray(task.tags) ? task.tags : [],
+    subtasks: Array.isArray(task.subtasks) ? task.subtasks.map(st => ({
+      id: st.id || Date.now().toString(),
+      title: st.title || '',
+      completed: !!st.completed,
+    })) : [],
     // 确保 updatedAt 存在，旧数据使用当前时间作为默认值
     updatedAt: task.updatedAt || now,
   }
@@ -545,6 +551,61 @@ export const useTaskStore = defineStore('tasks', () => {
   }
 
   /**
+   * 为指定任务添加子任务
+   * @param {string} taskId - 任务ID
+   * @param {string} subtaskTitle - 子任务标题
+   */
+  function addSubtask(taskId, subtaskTitle) {
+    const task = tasks.value.find(t => t.id === taskId)
+    if (!task) return
+
+    const newSubtask = {
+      id: Date.now().toString(),
+      title: subtaskTitle.trim(),
+      completed: false,
+    }
+
+    task.subtasks.push(newSubtask)
+    task.updatedAt = getNowISO()
+    persist()
+    syncAfterChange()
+  }
+
+  /**
+   * 更新指定子任务
+   * @param {string} taskId - 任务ID
+   * @param {string} subtaskId - 子任务ID
+   * @param {Object} updates - 更新的字段（如 completed, title）
+   */
+  function updateSubtask(taskId, subtaskId, updates) {
+    const task = tasks.value.find(t => t.id === taskId)
+    if (!task) return
+
+    const subtask = task.subtasks.find(st => st.id === subtaskId)
+    if (!subtask) return
+
+    Object.assign(subtask, updates)
+    task.updatedAt = getNowISO()
+    persist()
+    syncAfterChange()
+  }
+
+  /**
+   * 删除指定子任务
+   * @param {string} taskId - 任务ID
+   * @param {string} subtaskId - 子任务ID
+   */
+  function deleteSubtask(taskId, subtaskId) {
+    const task = tasks.value.find(t => t.id === taskId)
+    if (!task) return
+
+    task.subtasks = task.subtasks.filter(st => st.id !== subtaskId)
+    task.updatedAt = getNowISO()
+    persist()
+    syncAfterChange()
+  }
+
+  /**
    * 清除所有已完成的任务
    */
   function clearCompleted() {
@@ -686,6 +747,9 @@ export const useTaskStore = defineStore('tasks', () => {
     initTasks,
     fetchFromCloud,
     saveToCloud,
+    addSubtask,
+    updateSubtask,
+    deleteSubtask,
     syncFromCloud,
     mergeTasks,
   }

@@ -283,6 +283,17 @@ function getTagType(index) {
   return types[index % types.length]
 }
 
+function getSubtaskProgress(task) {
+  if (!task.subtasks || task.subtasks.length === 0) return 0
+  const completed = task.subtasks.filter(st => st.completed).length
+  return Math.round((completed / task.subtasks.length) * 100)
+}
+
+function getSubtaskCompleted(task) {
+  if (!task.subtasks || task.subtasks.length === 0) return 0
+  return task.subtasks.filter(st => st.completed).length
+}
+
 watch(form, (newForm) => {
   if (newForm.tags && newForm.tags.length > 5) {
     newForm.tags = newForm.tags.slice(0, 5)
@@ -426,6 +437,21 @@ const formRules = {
                     ...+{{ element.tags.length - 3 }}
                   </span>
                 </div>
+                <!-- Subtask Progress -->
+                <div class="task-card-subtasks" v-if="element.subtasks && element.subtasks.length > 0">
+                  <div class="subtask-progress-wrapper">
+                    <el-progress
+                      type="line"
+                      :percentage="getSubtaskProgress(element)"
+                      :stroke-width="6"
+                      :show-text="false"
+                      class="subtask-progress"
+                    />
+                    <span class="subtask-count">
+                      {{ getSubtaskCompleted(element) }}/{{ element.subtasks.length }}
+                    </span>
+                  </div>
+                </div>
                 <div class="task-card-meta">
                   <el-icon size="12"><Calendar /></el-icon>
                   <span :class="isOverdue(element) ? 'overdue-date' : ''">
@@ -549,6 +575,21 @@ const formRules = {
               <span v-if="task.tags.length > 3" class="more-tags">
                 ...+{{ task.tags.length - 3 }}
               </span>
+            </div>
+            <!-- Subtask Progress -->
+            <div class="task-card-subtasks" v-if="task.subtasks && task.subtasks.length > 0">
+              <div class="subtask-progress-wrapper">
+                <el-progress
+                  type="line"
+                  :percentage="getSubtaskProgress(task)"
+                  :stroke-width="6"
+                  :show-text="false"
+                  class="subtask-progress"
+                />
+                <span class="subtask-count">
+                  {{ getSubtaskCompleted(task) }}/{{ task.subtasks.length }}
+                </span>
+              </div>
             </div>
             <div class="task-card-meta">
               <el-icon size="12"><Calendar /></el-icon>
@@ -685,6 +726,7 @@ const formRules = {
             <el-select
               v-model="form.tags"
               multiple
+              filterable
               allow-create
               default-first-option
               placeholder="输入标签后按回车或逗号创建"
