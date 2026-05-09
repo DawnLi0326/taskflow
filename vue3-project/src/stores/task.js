@@ -49,14 +49,16 @@ function getNowISO() {
  * @returns {Object} 标准化后的任务对象
  */
 function normalizeTask(task) {
-  // 为旧数据补充 updatedAt 字段
+  // 为旧数据补充缺失字段
   const now = getNowISO()
   return {
     notes: '',
     order: 0,
+    tags: [],
     updatedAt: now,
     ...task,
     completed: !!task.completed,
+    tags: Array.isArray(task.tags) ? task.tags : [],
     // 确保 updatedAt 存在，旧数据使用当前时间作为默认值
     updatedAt: task.updatedAt || now,
   }

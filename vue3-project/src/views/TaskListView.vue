@@ -19,10 +19,11 @@ const settingsStore = useSettingsStore()
 const hoveredTaskId = ref(null)
 const dialogVisible = ref(false)
 const editingTask = ref(null)
-const form = ref({ title: '', dueDate: '', priority: 'medium', completed: false })
+const form = ref({ title: '', dueDate: '', priority: 'medium', tags: [], completed: false })
 const formRef = ref()
 const filterStatus = ref(FILTER_STATUS.ALL)
 const searchQuery = ref('')
+const selectedTags = ref([])
 const selectedIds = ref([])
 const isMobile = ref(window.innerWidth < 768)
 const activeMenuId = ref(null)
@@ -45,13 +46,34 @@ const sortedTasks = computed(() => {
   }
 })
 
+const allTags = computed(() => {
+  const tagSet = new Set()
+  taskStore.tasks.forEach(task => {
+    if (task.tags && Array.isArray(task.tags)) {
+      task.tags.forEach(tag => tagSet.add(tag.trim()))
+    }
+  })
+  return Array.from(tagSet).sort()
+})
+
 const filteredTasks = computed(() => {
   let list = sortedTasks.value
   const q = searchQuery.value.trim().toLowerCase()
+  
+  // 搜索筛选
   if (q) {
     list = list.filter(t => t.title.toLowerCase().includes(q))
   }
 
+  // 标签筛选（同时包含所有选中标签）
+  if (selectedTags.value.length > 0) {
+    list = list.filter(task => {
+      const taskTags = task.tags || []
+      return selectedTags.value.every(tag => taskTags.includes(tag))
+    })
+  }
+
+  // 状态筛选
   switch (filterStatus.value) {
     case FILTER_STATUS.COMPLETED:
       return list.filter(t => t.completed)
@@ -119,13 +141,19 @@ watch(() => route.query.filter, (f) => {
 
 function openAddDialog() {
   editingTask.value = null
-  form.value = { title: '', dueDate: today.value, priority: 'medium', completed: false }
+  form.value = { title: '', dueDate: today.value, priority: 'medium', tags: [], completed: false }
   dialogVisible.value = true
 }
 
 function openEditDialog(task) {
   editingTask.value = task
-  form.value = { title: task.title, dueDate: task.dueDate, priority: task.priority, completed: task.completed }
+  form.value = { 
+    title: task.title, 
+    dueDate: task.dueDate, 
+    priority: task.priority, 
+    tags: task.tags || [],
+    completed: task.completed 
+  }
   dialogVisible.value = true
 }
 
@@ -250,6 +278,18 @@ async function toggleCompleteFromCompleted(task) {
   }
 }
 
+function getTagType(index) {
+  const types = ['primary', 'success', 'warning', 'info', 'danger']
+  return types[index % types.length]
+}
+
+watch(form, (newForm) => {
+  if (newForm.tags && newForm.tags.length > 5) {
+    newForm.tags = newForm.tags.slice(0, 5)
+    ElMessage.warning('最多只能添加5个标签')
+  }
+}, { deep: true })
+
 function isOverdue(task) {
   return !task.completed && task.dueDate < today.value
 }
@@ -312,6 +352,21 @@ const formRules = {
             <el-radio-button value="completed">已完成 ({{ taskStore.completedCount }})</el-radio-button>
             <el-radio-button value="overdue">逾期 ({{ taskStore.overdueTasks.length }})</el-radio-button>
           </el-radio-group>
+          <el-select 
+            v-model="selectedTags" 
+            placeholder="筛选标签" 
+            size="small" 
+            class="tag-select"
+            multiple
+            collapse-tags
+          >
+            <el-option 
+              v-for="tag in allTags" 
+              :key="tag" 
+              :value="tag" 
+              :label="tag" 
+            />
+          </el-select>
           <el-select v-model="settingsStore.sortOrder" placeholder="排序方式" size="small" class="sort-select">
             <el-option value="dueDate" label="按截止日期" />
             <el-option value="priority" label="按优先级" />
@@ -356,6 +411,21 @@ const formRules = {
                 <span class="task-card-title" :class="{ 'is-completed': element.completed }">
                   {{ element.title }}
                 </span>
+                <!-- Tags -->
+                <div class="task-card-tags" v-if="element.tags && element.tags.length > 0">
+                  <el-tag 
+                    v-for="(tag, idx) in element.tags.slice(0, 3)" 
+                    :key="tag" 
+                    size="small" 
+                    effect="plain"
+                    :type="getTagType(idx)"
+                  >
+                    {{ tag }}
+                  </el-tag>
+                  <span v-if="element.tags.length > 3" class="more-tags">
+                    ...+{{ element.tags.length - 3 }}
+                  </span>
+                </div>
                 <div class="task-card-meta">
                   <el-icon size="12"><Calendar /></el-icon>
                   <span :class="isOverdue(element) ? 'overdue-date' : ''">
@@ -465,6 +535,21 @@ const formRules = {
           />
           <div class="task-card-info">
             <span class="task-card-title is-completed">{{ task.title }}</span>
+            <!-- Tags -->
+            <div class="task-card-tags" v-if="task.tags && task.tags.length > 0">
+              <el-tag 
+                v-for="(tag, idx) in task.tags.slice(0, 3)" 
+                :key="tag" 
+                size="small" 
+                effect="plain"
+                :type="getTagType(idx)"
+              >
+                {{ tag }}
+              </el-tag>
+              <span v-if="task.tags.length > 3" class="more-tags">
+                ...+{{ task.tags.length - 3 }}
+              </span>
+            </div>
             <div class="task-card-meta">
               <el-icon size="12"><Calendar /></el-icon>
               <span>{{ formatDate(task.dueDate) }}</span>
@@ -594,6 +679,26 @@ const formRules = {
               </span>
             </el-option>
           </el-select>
+        </el-form-item>
+        <el-form-item label="标签">
+          <div class="tag-input-wrapper">
+            <el-select
+              v-model="form.tags"
+              multiple
+              allow-create
+              default-first-option
+              placeholder="输入标签后按回车或逗号创建"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="tag in allTags"
+                :key="tag"
+                :label="tag"
+                :value="tag"
+              />
+            </el-select>
+            <span class="tag-hint">输入标签后按回车或逗号创建，最多5个标签</span>
+          </div>
         </el-form-item>
         <el-form-item label="状态" v-if="editingTask">
           <el-switch

@@ -14,11 +14,13 @@ const pieChartRef = ref()
 const barChartRef = ref()
 const barDailyRef = ref()
 const lineChartRef = ref()
+const tagChartRef = ref()
 
 let pieChart = null
 let barChart = null
 let barDailyChart = null
 let lineChart = null
+let tagChart = null
 
 const isDark = computed(() => settingsStore.darkMode)
 
@@ -66,6 +68,20 @@ const completionRatePerDay = computed(() =>
     return Math.round((done / due.length) * 100)
   })
 )
+
+const tagDistribution = computed(() => {
+  const tagCount = {}
+  taskStore.tasks.forEach(task => {
+    if (task.tags && Array.isArray(task.tags)) {
+      task.tags.forEach(tag => {
+        tagCount[tag] = (tagCount[tag] || 0) + 1
+      })
+    }
+  })
+  return Object.entries(tagCount)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+})
 
 function getBaseOption() {
   return {
@@ -300,11 +316,87 @@ function updateLineChart() {
   })
 }
 
+function initTagChart() {
+  if (!tagChartRef.value) return
+  tagChart = echarts.init(tagChartRef.value)
+  updateTagChart()
+}
+
+function updateTagChart() {
+  if (!tagChart) return
+  
+  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316']
+  
+  tagChart.setOption({
+    ...getBaseOption(),
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: tooltipBg.value,
+      borderColor: tooltipBorder.value,
+      textStyle: { color: titleColor.value },
+      formatter: (params) => {
+        const p = params[0]
+        return `${p.name}<br/>关联任务数：${p.value} 个`
+      },
+    },
+    grid: { left: '10%', right: '15%', top: '8%', bottom: '8%', containLabel: true },
+    xAxis: {
+      type: 'value',
+      minInterval: 1,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: borderColor.value } },
+      axisLabel: { color: textColor.value },
+    },
+    yAxis: {
+      type: 'category',
+      data: tagDistribution.value.map(item => item.name),
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: textColor.value },
+    },
+    series: [{
+      name: '任务数',
+      type: 'bar',
+      barWidth: '50%',
+      itemStyle: {
+        borderRadius: [0, 6, 6, 0],
+        color: (params) => ({
+          type: 'linear',
+          x: 0, y: 0, x2: 1, y2: 0,
+          colorStops: [
+            { offset: 0, color: colors[params.dataIndex % colors.length] },
+            { offset: 1, color: lightenColor(colors[params.dataIndex % colors.length], 20) },
+          ],
+        }),
+      },
+      label: { show: true, position: 'right', color: textColor.value },
+      data: tagDistribution.value.map(item => item.value),
+    }],
+  })
+}
+
+function lightenColor(color, percent) {
+  const num = parseInt(color.replace('#', ''), 16)
+  const amt = Math.round(2.55 * percent)
+  const R = (num >> 16) + amt
+  const G = (num >> 8 & 0x00FF) + amt
+  const B = (num & 0x0000FF) + amt
+  return '#' + (
+    0x1000000 +
+    (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+    (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+    (B < 255 ? B < 1 ? 0 : B : 255)
+  ).toString(16).slice(1)
+}
+
 function resizeCharts() {
   pieChart?.resize()
   barChart?.resize()
   barDailyChart?.resize()
   lineChart?.resize()
+  tagChart?.resize()
 }
 
 onMounted(async () => {
@@ -313,6 +405,7 @@ onMounted(async () => {
   initBarChart()
   initBarDailyChart()
   initLineChart()
+  initTagChart()
   window.addEventListener('resize', resizeCharts)
 })
 
@@ -322,6 +415,7 @@ onUnmounted(() => {
   barChart?.dispose()
   barDailyChart?.dispose()
   lineChart?.dispose()
+  tagChart?.dispose()
 })
 
 // Update charts when data or theme changes
@@ -331,6 +425,7 @@ watch([() => taskStore.tasks, isDark], async () => {
   updateBarChart()
   updateBarDailyChart()
   updateLineChart()
+  updateTagChart()
 }, { deep: true })
 
 function goToOverdue() {
@@ -387,6 +482,12 @@ function goToOverdue() {
       <div class="chart-card chart-wide">
         <h3 class="chart-title">近7天任务完成率</h3>
         <div ref="lineChartRef" class="chart-container"></div>
+      </div>
+
+      <!-- Tag Distribution Chart -->
+      <div class="chart-card chart-wide">
+        <h3 class="chart-title">标签分布</h3>
+        <div ref="tagChartRef" class="chart-container"></div>
       </div>
     </div>
 
