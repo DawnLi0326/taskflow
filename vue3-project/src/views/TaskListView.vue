@@ -8,6 +8,7 @@ import { useTaskStore } from '../stores/task'
 import { useSettingsStore } from '../stores/settings'
 import { FILTER_STATUS, SORT_ORDER, PRIORITY_LABELS } from '../constants'
 import { formatDate, getTodayStr } from '../utils/date'
+import confetti from 'canvas-confetti'
 
 // Store and route
 const route = useRoute()
@@ -241,6 +242,15 @@ async function clearCompleted() {
   }
 }
 
+function showConfetti() {
+  confetti({
+    particleCount: 100,
+    spread: 70,
+    origin: { y: 0.6 },
+    disableForReducedMotion: true
+  })
+}
+
 async function toggleComplete(task) {
   if (!task.completed) {
     try {
@@ -254,6 +264,7 @@ async function toggleComplete(task) {
         }
       )
       taskStore.updateTask(task.id, { completed: true })
+      showConfetti()  // 添加彩带特效
     } catch {
       // cancelled
     }
@@ -350,39 +361,47 @@ const formRules = {
       <!-- Filters -->
       <div class="filters-row">
         <div class="filter-controls">
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索任务..."
-            clearable
-            class="search-input"
-            prefix-icon="Search"
-          />
-          <el-radio-group v-model="filterStatus">
-            <el-radio-button value="all">全部 ({{ taskStore.totalCount }})</el-radio-button>
-            <el-radio-button value="incomplete">未完成 ({{ taskStore.incompleteCount }})</el-radio-button>
-            <el-radio-button value="completed">已完成 ({{ taskStore.completedCount }})</el-radio-button>
-            <el-radio-button value="overdue">逾期 ({{ taskStore.overdueTasks.length }})</el-radio-button>
-          </el-radio-group>
-          <el-select 
-            v-model="selectedTags" 
-            placeholder="筛选标签" 
-            size="small" 
-            class="tag-select"
-            multiple
-            collapse-tags
-          >
-            <el-option 
-              v-for="tag in allTags" 
-              :key="tag" 
-              :value="tag" 
-              :label="tag" 
+          <!-- 左侧：搜索框 + 状态筛选 -->
+          <div class="filter-left">
+            <el-input
+              v-model="searchQuery"
+              placeholder="搜索任务..."
+              clearable
+              class="search-input"
+              prefix-icon="Search"
             />
-          </el-select>
-          <el-select v-model="settingsStore.sortOrder" placeholder="排序方式" size="small" class="sort-select">
-            <el-option value="dueDate" label="按截止日期" />
-            <el-option value="priority" label="按优先级" />
-            <el-option value="custom" label="自定义排序" />
-          </el-select>
+            <div class="status-filter-wrapper">
+              <el-radio-group v-model="filterStatus" class="status-radio-group">
+                <el-radio-button value="all">全部 ({{ taskStore.totalCount }})</el-radio-button>
+                <el-radio-button value="incomplete">未完成 ({{ taskStore.incompleteCount }})</el-radio-button>
+                <el-radio-button value="completed">已完成 ({{ taskStore.completedCount }})</el-radio-button>
+                <el-radio-button value="overdue">逾期 ({{ taskStore.overdueTasks.length }})</el-radio-button>
+              </el-radio-group>
+            </div>
+          </div>
+          <!-- 右侧：标签筛选 + 排序 -->
+          <div class="filter-right">
+            <el-select 
+              v-model="selectedTags" 
+              placeholder="筛选标签" 
+              size="small" 
+              class="tag-select"
+              multiple
+              collapse-tags
+            >
+              <el-option 
+                v-for="tag in allTags" 
+                :key="tag" 
+                :value="tag" 
+                :label="tag" 
+              />
+            </el-select>
+            <el-select v-model="settingsStore.sortOrder" placeholder="排序方式" size="small" class="sort-select">
+              <el-option value="dueDate" label="按截止日期" />
+              <el-option value="priority" label="按优先级" />
+              <el-option value="custom" label="自定义排序" />
+            </el-select>
+          </div>
         </div>
       </div>
     </div>
@@ -437,27 +456,27 @@ const formRules = {
                     ...+{{ element.tags.length - 3 }}
                   </span>
                 </div>
-                <!-- Subtask Progress -->
-                <div class="task-card-subtasks" v-if="element.subtasks && element.subtasks.length > 0">
-                  <div class="subtask-progress-wrapper">
-                    <el-progress
-                      type="line"
-                      :percentage="getSubtaskProgress(element)"
-                      :stroke-width="6"
-                      :show-text="false"
-                      class="subtask-progress"
-                    />
-                    <span class="subtask-count">
-                      {{ getSubtaskCompleted(element) }}/{{ element.subtasks.length }}
-                    </span>
-                  </div>
-                </div>
                 <div class="task-card-meta">
                   <el-icon size="12"><Calendar /></el-icon>
                   <span :class="isOverdue(element) ? 'overdue-date' : ''">
                     {{ formatDate(element.dueDate) }}
                   </span>
                   <el-tag type="danger" size="small" v-if="isOverdue(element)">逾期</el-tag>
+                </div>
+                <!-- Subtask Progress at bottom -->
+                <div class="task-card-subtasks" v-if="element.subtasks && element.subtasks.length > 0">
+                  <div class="subtask-progress-wrapper">
+                    <span class="subtask-count">
+                      {{ getSubtaskCompleted(element) }}/{{ element.subtasks.length }}
+                    </span>
+                    <el-progress
+                      type="line"
+                      :percentage="getSubtaskProgress(element)"
+                      :stroke-width="4"
+                      :show-text="false"
+                      class="subtask-progress"
+                    />
+                  </div>
                 </div>
               </div>
               <span :class="['priority-tag', `priority-${element.priority}`]">
@@ -576,24 +595,24 @@ const formRules = {
                 ...+{{ task.tags.length - 3 }}
               </span>
             </div>
-            <!-- Subtask Progress -->
-            <div class="task-card-subtasks" v-if="task.subtasks && task.subtasks.length > 0">
-              <div class="subtask-progress-wrapper">
-                <el-progress
-                  type="line"
-                  :percentage="getSubtaskProgress(task)"
-                  :stroke-width="6"
-                  :show-text="false"
-                  class="subtask-progress"
-                />
-                <span class="subtask-count">
-                  {{ getSubtaskCompleted(task) }}/{{ task.subtasks.length }}
-                </span>
-              </div>
-            </div>
             <div class="task-card-meta">
               <el-icon size="12"><Calendar /></el-icon>
               <span>{{ formatDate(task.dueDate) }}</span>
+            </div>
+            <!-- Subtask Progress - moved to bottom -->
+            <div class="task-card-subtasks" v-if="task.subtasks && task.subtasks.length > 0">
+              <div class="subtask-progress-wrapper">
+                <span class="subtask-count">
+                  {{ getSubtaskCompleted(task) }}/{{ task.subtasks.length }}
+                </span>
+                <el-progress
+                  type="line"
+                  :percentage="getSubtaskProgress(task)"
+                  :stroke-width="4"
+                  :show-text="false"
+                  class="subtask-progress"
+                />
+              </div>
             </div>
           </div>
           <span :class="['priority-tag', `priority-${task.priority}`]">
@@ -796,28 +815,106 @@ const formRules = {
   color: var(--color-text-muted);
 }
 
+/* 筛选栏布局 */
 .filters-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   margin-bottom: 20px;
-  flex-wrap: wrap;
-  justify-content: space-between;
 }
 
-.filters-row > div {
+.filter-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.filter-left {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex-wrap: wrap;
+}
+
+.filter-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-input {
+  width: 240px;
+}
+
+.status-filter-wrapper {
+  flex-shrink: 0;
+}
+
+.status-radio-group {
+  display: flex;
+  gap: 4px;
 }
 
 .sort-select {
   min-width: 120px;
 }
 
-.search-input {
-  width: 240px;
+.tag-select {
+  min-width: 120px;
+}
+
+/* 移动端响应式布局 (<768px) */
+@media (max-width: 767px) {
+  .filter-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .filter-left {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .filter-right {
+    display: flex;
+    gap: 12px;
+  }
+
+  .search-input {
+    width: 100%;
+  }
+
+  .status-filter-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--el-border-color) transparent;
+  }
+
+  .status-filter-wrapper::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .status-filter-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .status-filter-wrapper::-webkit-scrollbar-thumb {
+    background: var(--el-border-color);
+    border-radius: 3px;
+  }
+
+  .status-radio-group {
+    display: inline-flex;
+    padding: 2px;
+  }
+
+  .sort-select,
+  .tag-select {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 .section-block {
@@ -966,6 +1063,31 @@ const formRules = {
 .overdue-date {
   color: var(--color-error);
   font-weight: 500;
+}
+
+/* Subtask Progress Styles */
+.task-card-subtasks {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.subtask-progress-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.subtask-progress {
+  flex: 0 1 120px;
+  min-width: 60px;
+}
+
+.subtask-count {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
 }
 
 .task-actions {

@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTaskStore } from '../stores/task'
 import { ElMessage } from 'element-plus'
@@ -9,8 +9,24 @@ import {
 } from '@element-plus/icons-vue'
 import { PRIORITY_LABELS } from '../constants'
 import { getFullTodayStr, formatDateShort, daysBetween } from '../utils/date'
+import { getRandomQuote } from '../data/quotes'
+import { Refresh } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const currentQuote = ref({ text: '', author: '' })
+const isAnimating = ref(false)
+
+function refreshQuote() {
+  isAnimating.value = false
+  setTimeout(() => {
+    currentQuote.value = getRandomQuote()
+    isAnimating.value = true
+  }, 50)
+}
+
+watch(currentQuote, () => {
+  isAnimating.value = true
+})
 const taskStore = useTaskStore()
 
 const today = computed(() => getFullTodayStr())
@@ -77,6 +93,13 @@ function goToTasks(filter) {
 function goToStatistics() {
   router.push('/statistics')
 }
+
+onMounted(() => {
+  currentQuote.value = getRandomQuote()
+  setTimeout(() => {
+    isAnimating.value = true
+  }, 100)
+})
 </script>
 
 <template>
@@ -100,6 +123,18 @@ function goToStatistics() {
           <el-icon><TrendCharts /></el-icon> 查看统计
         </el-button>
       </div>
+    </div>
+
+    <!-- Quote Card -->
+    <div class="quote-card">
+      <div class="quote-icon" :class="{ 'icon-rotate': isAnimating }">💡</div>
+      <div class="quote-content" :class="{ 'quote-animate': isAnimating }">
+        <p class="quote-text">{{ currentQuote.text }}</p>
+        <p class="quote-author">— {{ currentQuote.author }}</p>
+      </div>
+      <button class="quote-refresh" @click="refreshQuote" title="换一句">
+        <el-icon><Refresh /></el-icon>
+      </button>
     </div>
 
     <!-- Stats Cards -->
@@ -333,6 +368,97 @@ function goToStatistics() {
   padding: 24px;
   max-width: 1200px;
   margin: 0 auto;
+}
+
+/* Quote Card */
+.quote-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--el-bg-color);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--el-box-shadow-light);
+  border: 1px solid var(--el-border-color-light);
+  margin-bottom: 20px;
+}
+
+.quote-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.quote-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.quote-text {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  line-height: 1.6;
+  margin: 0 0 6px 0;
+}
+
+.quote-author {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin: 0;
+}
+
+.quote-refresh {
+  flex-shrink: 0;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quote-refresh:hover {
+  background: var(--el-fill-color-light);
+  color: var(--el-color-primary);
+}
+
+/* Quote Animation */
+.quote-content {
+  flex: 1;
+  min-width: 0;
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.quote-animate {
+  animation: quoteFadeIn 0.6s ease-out forwards;
+}
+
+@keyframes quoteFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.icon-rotate {
+  animation: iconSpin 0.4s ease-out;
+}
+
+@keyframes iconSpin {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.2);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
 }
 
 /* Welcome */

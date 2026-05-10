@@ -200,7 +200,7 @@ export const useTaskStore = defineStore('tasks', () => {
    * @returns {Array<Object>} 云端任务数组（标准化后）
    */
   async function fetchFromCloud() {
-    if (isSyncing.value) return []
+    if (isSyncing.value) return null
 
     try {
       isSyncing.value = true
@@ -223,7 +223,7 @@ export const useTaskStore = defineStore('tasks', () => {
       return normalizedTasks
     } catch (error) {
       console.warn('⚠️ 从云端拉取数据失败，将继续使用本地数据:', error.message)
-      return []
+      return null  // 返回 null 表示失败，而非空数组
     } finally {
       isSyncing.value = false
     }
@@ -311,40 +311,40 @@ export const useTaskStore = defineStore('tasks', () => {
         // 3. 获取云端任务数据
         const cloudTasks = await fetchFromCloud()
 
+        // 4. 如果云端同步失败（返回 null），保持本地数据不变
+        if (cloudTasks === null) {
+          console.log('ℹ️ 云端同步失败，继续使用本地数据')
+          return
+        }
+
+        // 5. 云端返回空数组（明确表示云端没有数据）
         if (cloudTasks.length === 0) {
-          // 云端返回空数组（可能是调用了 clearAll）
-          // 如果本地有数据但云端为空，需要判断是否应该清空本地
-          // 这里采用保守策略：只有当本地有数据且云端明确返回空数组时，清空本地
-          if (tasks.value.length > 0) {
-            // 检查是否是云端主动返回空（而非获取失败）
-            // fetchFromCloud 在失败时返回空数组，所以这里需要特殊处理
-            // 为了确保 clearAll 后数据不会恢复，我们接受云端的空数组
-            console.log('ℹ️ 云端数据为空')
-            // 如果在线且云端返回空，清空本地数据以保持同步
-            if (navigator.onLine) {
-              tasks.value = []
-              persist()
-              console.log('✅ 本地数据已同步为空')
-            }
+          console.log('ℹ️ 云端数据为空')
+          // 如果在线且云端明确返回空，且本地有数据，可能是之前调用了 clearAll
+          // 采用保守策略：只有当本地数据为空时才同步云端的空状态
+          // 这样可以避免云端连接问题导致本地数据丢失
+          if (tasks.value.length === 0 && navigator.onLine) {
+            persist()
+            console.log('✅ 本地数据已同步为空')
           }
           return
         }
 
-        // 4. 使用 mergeTasks 合并数据
+        // 6. 使用 mergeTasks 合并数据
         const mergedTasks = mergeTasks(tasks.value, cloudTasks)
 
-        // 5. 检查是否有变化
+        // 7. 检查是否有变化
         const hasChanges = JSON.stringify(mergedTasks) !== JSON.stringify(tasks.value)
 
         if (hasChanges) {
-          // 6. 更新本地任务列表
+          // 8. 更新本地任务列表
           tasks.value = mergedTasks
 
-          // 7. 保存合并后的数据到本地
+          // 9. 保存合并后的数据到本地
           persist()
           console.log('✅ 已合并云端数据')
 
-          // 8. 将合并后的完整数据推送到云端（保持云端与本地一致）
+          // 10. 将合并后的完整数据推送到云端（保持云端与本地一致）
           saveToCloud()
         } else {
           console.log('ℹ️ 本地数据已是最新，无需合并')
@@ -556,8 +556,8 @@ export const useTaskStore = defineStore('tasks', () => {
    * @param {string} subtaskTitle - 子任务标题
    */
   function addSubtask(taskId, subtaskTitle) {
-    const task = tasks.value.find(t => t.id === taskId)
-    if (!task) return
+    const taskIndex = tasks.value.findIndex(t => t.id === taskId)
+    if (taskIndex === -1) return
 
     const newSubtask = {
       id: Date.now().toString(),
@@ -565,8 +565,12 @@ export const useTaskStore = defineStore('tasks', () => {
       completed: false,
     }
 
-    task.subtasks.push(newSubtask)
-    task.updatedAt = getNowISO()
+    // 使用展开运算符创建新数组，确保响应式更新
+    tasks.value[taskIndex] = {
+      ...tasks.value[taskIndex],
+      subtasks: [...tasks.value[taskIndex].subtasks, newSubtask],
+      updatedAt: getNowISO(),
+    }
     persist()
     syncAfterChange()
   }
@@ -578,14 +582,20 @@ export const useTaskStore = defineStore('tasks', () => {
    * @param {Object} updates - 更新的字段（如 completed, title）
    */
   function updateSubtask(taskId, subtaskId, updates) {
-    const task = tasks.value.find(t => t.id === taskId)
-    if (!task) return
+    const taskIndex = tasks.value.findIndex(t => t.id === taskId)
+    if (taskIndex === -1) return
 
-    const subtask = task.subtasks.find(st => st.id === subtaskId)
-    if (!subtask) return
+    const subtaskIndex = tasks.value[taskIndex].subtasks.findIndex(st => st.id === subtaskId)
+    if (subtaskIndex === -1) return
 
-    Object.assign(subtask, updates)
-    task.updatedAt = getNowISO()
+    // 使用展开运算符创建新数组，确保响应式更新
+    tasks.value[taskIndex] = {
+      ...tasks.value[taskIndex],
+      subtasks: tasks.value[taskIndex].subtasks.map((st, idx) =>
+        idx === subtaskIndex ? { ...st, ...updates } : st
+      ),
+      updatedAt: getNowISO(),
+    }
     persist()
     syncAfterChange()
   }
@@ -596,11 +606,15 @@ export const useTaskStore = defineStore('tasks', () => {
    * @param {string} subtaskId - 子任务ID
    */
   function deleteSubtask(taskId, subtaskId) {
-    const task = tasks.value.find(t => t.id === taskId)
-    if (!task) return
+    const taskIndex = tasks.value.findIndex(t => t.id === taskId)
+    if (taskIndex === -1) return
 
-    task.subtasks = task.subtasks.filter(st => st.id !== subtaskId)
-    task.updatedAt = getNowISO()
+    // 使用展开运算符创建新数组，确保响应式更新
+    tasks.value[taskIndex] = {
+      ...tasks.value[taskIndex],
+      subtasks: tasks.value[taskIndex].subtasks.filter(st => st.id !== subtaskId),
+      updatedAt: getNowISO(),
+    }
     persist()
     syncAfterChange()
   }

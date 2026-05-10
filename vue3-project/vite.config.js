@@ -107,7 +107,7 @@ export default defineConfig({
 
   // 开发服务器配置
   server: {
-    port: 3000,
+    port: 5173,
     open: true,
   },
 })
