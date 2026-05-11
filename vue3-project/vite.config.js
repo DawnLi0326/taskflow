@@ -37,8 +37,9 @@ export default defineConfig({
             },
           },
           {
-            // 缓存外部资源（如图标字体）
-            urlPattern: /^https?:\/\/.*/i,
+            // 缓存外部资源（如图标字体、CDN资源）
+            // 排除当前域名，只缓存真正的外部资源
+            urlPattern: /^https?:\/\/(?!ed870e13\.taskflow1\.pages\.dev|localhost).+/i,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'external-resources',
