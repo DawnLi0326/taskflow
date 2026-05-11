@@ -74,23 +74,12 @@ export default defineConfig({
         display: 'standalone',
         // 起始路径
         start_url: '/',
-        // 图标配置（可留空占位）
+        // 图标配置（使用现有的 svg 图标）
         icons: [
           {
-            src: '/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: '/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-          },
-          {
-            src: '/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable',
+            src: '/vite.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
           },
         ],
       },
